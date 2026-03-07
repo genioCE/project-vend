@@ -1,0 +1,10 @@
+{
+  "emotion_lexicon": {},
+  "archetype_patterns": {},
+  "decision_patterns_add": [],
+  "stop_concepts_add": [],
+  "stop_concepts_remove": [],
+  "concept_boosts": {},
+  "phrase_boosts": {},
+  "transition_patterns_add": []
+}

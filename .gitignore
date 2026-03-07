@@ -1,0 +1,56 @@
+# Environment & secrets
+.env
+*.env.local
+
+# Personal corpus data — NEVER push
+data/
+
+# Databases — contain personal/profiled data
+*.sqlite
+*.db
+*.duckdb
+mcp-server/data/
+
+# Gravity experiment results (contain corpus-derived data)
+gravity/results/
+
+# Neo4j data volumes (created by Docker)
+neo4j-data/
+neo4j/
+
+# ChromaDB persistence (contains embeddings of personal data)
+chroma-data/
+chromadb/
+
+# SQL backups / dumps
+*.sql
+*.sql.gz
+*.dump
+*backup*
+
+# Docker volumes
+volumes/
+
+# Node
+node_modules/
+dist/
+
+# Python
+__pycache__/
+*.pyc
+.mypy_cache/
+.pytest_cache/
+*.egg-info/
+venv/
+.venv/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log

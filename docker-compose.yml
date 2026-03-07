@@ -1,0 +1,249 @@
+networks:
+  corpus-net:
+
+volumes:
+  chroma-data:
+  neo4j-data:
+  neo4j-logs:
+  graph-feedback-data:
+  graph-ingest-data:
+  analysis-data:
+  timeseries-data:
+
+services:
+
+  neo4j:
+    image: neo4j:5-community
+    networks: [corpus-net]
+    volumes:
+      - neo4j-data:/data
+      - neo4j-logs:/logs
+    environment:
+      - NEO4J_AUTH=${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:?NEO4J_PASSWORD is required}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:7474 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+  embeddings-service:
+    build: ./embeddings-service
+    ports:
+      - "127.0.0.1:8000:8000"
+    networks: [corpus-net]
+    volumes:
+      - ${CORPUS_PATH}:/corpus:ro
+      - chroma-data:/data/chroma
+    environment:
+      - CHROMA_PERSIST_PATH=/data/chroma
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-all-mpnet-base-v2}
+      - EMBEDDING_PROVIDER=${EMBEDDING_PROVIDER:-sentence_transformers}
+      - CORPUS_PATH=/corpus
+      - OLLAMA_URL=${OLLAMA_URL:-http://host.docker.internal:11434}
+      - OLLAMA_EMBEDDING_MODEL=${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  graph-service:
+    build: ./graph-service
+    ports:
+      - "127.0.0.1:8001:8001"
+    networks: [corpus-net]
+    volumes:
+      - ./graph-service/config:/service/config:ro
+      - graph-feedback-data:/service/data
+    environment:
+      - NEO4J_URI=bolt://neo4j:7687
+      - NEO4J_USER=${NEO4J_USER:-neo4j}
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD:?NEO4J_PASSWORD is required}
+      - EMBEDDINGS_SERVICE_URL=http://embeddings-service:8000
+      - GRAPH_STYLE_PROFILE_PATH=/service/config/style_profile.json
+      - GRAPH_ENTITY_ALIASES_PATH=/service/config/entity_aliases.json
+      - GRAPH_FEEDBACK_STORE_PATH=/service/data/graphrag_feedback.json
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    depends_on:
+      neo4j:
+        condition: service_healthy
+      embeddings-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  analysis-service:
+    build: ./analysis-service
+    ports:
+      - "127.0.0.1:8002:8002"
+    networks: [corpus-net]
+    volumes:
+      - analysis-data:/service/data
+    environment:
+      - EMBEDDINGS_SERVICE_URL=http://embeddings-service:8000
+      - GRAPH_SERVICE_URL=http://graph-service:8001
+      - ENTRY_SUMMARY_DB_PATH=/service/data/analysis.sqlite
+      - ENTRY_SUMMARY_PROVIDER=${ENTRY_SUMMARY_PROVIDER:-auto}
+      - STATE_LABEL_PROVIDER=${STATE_LABEL_PROVIDER:-auto}
+      - OLLAMA_URL=${OLLAMA_URL:-http://host.docker.internal:11434}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.1:8b}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - ANTHROPIC_MODEL=${ANTHROPIC_MODEL:-claude-haiku-4-5-20251001}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    depends_on:
+      embeddings-service:
+        condition: service_healthy
+      graph-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8002/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  mcp-server:
+    build: ./mcp-server
+    ports:
+      - "127.0.0.1:3001:3001"
+    networks: [corpus-net]
+    volumes:
+      - timeseries-data:/app/data
+      - analysis-data:/analysis-data:ro
+      - ${CORPUS_PATH}:/corpus:ro
+    environment:
+      - EMBEDDINGS_SERVICE_URL=http://embeddings-service:8000
+      - GRAPH_SERVICE_URL=http://graph-service:8001
+      - ANALYSIS_SERVICE_URL=http://analysis-service:8002
+      - LLM_PROVIDER=${LLM_PROVIDER:-ollama}
+      - OLLAMA_URL=${OLLAMA_URL:-http://host.docker.internal:11434}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.1:8b}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - ANTHROPIC_MODEL=${ANTHROPIC_MODEL:-claude-sonnet-4-20250514}
+      - DUCKDB_PATH=/app/data/timeseries.duckdb
+      - ANALYSIS_SQLITE_PATH=/analysis-data/analysis.sqlite
+      - CORPUS_PATH=/corpus
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    depends_on:
+      embeddings-service:
+        condition: service_healthy
+    stdin_open: true
+    restart: unless-stopped
+
+  web-ui:
+    build: ./web-ui
+    ports:
+      - "127.0.0.1:3000:3000"
+    networks: [corpus-net]
+    depends_on:
+      - mcp-server
+    restart: unless-stopped
+
+  ingest:
+    build: ./embeddings-service
+    entrypoint: ["python", "-u", "app/ingest.py"]
+    command: []
+    networks: [corpus-net]
+    volumes:
+      - ${CORPUS_PATH}:/corpus:ro
+      - chroma-data:/data/chroma
+    environment:
+      - CHROMA_PERSIST_PATH=/data/chroma
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-all-mpnet-base-v2}
+      - EMBEDDING_PROVIDER=${EMBEDDING_PROVIDER:-sentence_transformers}
+      - CORPUS_PATH=/corpus
+      - MANIFEST_DB_PATH=/data/chroma/ingest_manifest.sqlite
+      - OLLAMA_URL=${OLLAMA_URL:-http://host.docker.internal:11434}
+      - OLLAMA_EMBEDDING_MODEL=${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    profiles: ["ingest"]
+
+  graph-ingest:
+    build: ./graph-service
+    entrypoint: ["python", "-m", "app.graph_ingest"]
+    command: []
+    networks: [corpus-net]
+    volumes:
+      - ${CORPUS_PATH}:/corpus:ro
+      - ./graph-service/config:/service/config:ro
+      - graph-ingest-data:/service/data
+      - graph-feedback-data:/service/feedback-data:ro
+    environment:
+      - NEO4J_URI=bolt://neo4j:7687
+      - NEO4J_USER=${NEO4J_USER:-neo4j}
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD:?NEO4J_PASSWORD is required}
+      - CORPUS_PATH=/corpus
+      - MANIFEST_DB_PATH=/service/data/ingest_manifest.sqlite
+      - GRAPH_STYLE_PROFILE_PATH=/service/config/style_profile.json
+      - GRAPH_ENTITY_ALIASES_PATH=/service/config/entity_aliases.json
+      - GRAPH_AUTO_TUNING_PATH=/service/feedback-data/feedback_tuning.json
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    depends_on:
+      neo4j:
+        condition: service_healthy
+    profiles: ["graph-ingest"]
+
+  graph-enrich:
+    build: ./graph-service
+    entrypoint: ["python", "-u", "-m", "app.graph_enrich"]
+    command: []
+    networks: [corpus-net]
+    volumes:
+      - ./graph-service/config:/service/config:ro
+      - graph-ingest-data:/service/data
+      - analysis-data:/analysis-data:ro
+    environment:
+      - NEO4J_URI=bolt://neo4j:7687
+      - NEO4J_USER=${NEO4J_USER:-neo4j}
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD:?NEO4J_PASSWORD is required}
+      - ANALYSIS_DB_PATH=/analysis-data/analysis.sqlite
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    depends_on:
+      neo4j:
+        condition: service_healthy
+    profiles: ["graph-enrich"]
+
+  batch-analysis:
+    build: ./analysis-service
+    entrypoint: ["python", "-m", "app.batch_analyze"]
+    command: []
+    networks: [corpus-net]
+    volumes:
+      - ${CORPUS_PATH}:/corpus:ro
+      - analysis-data:/service/data
+    environment:
+      - CORPUS_PATH=/corpus
+      - ENTRY_SUMMARY_DB_PATH=/service/data/analysis.sqlite
+      - ENTRY_SUMMARY_PROVIDER=${ENTRY_SUMMARY_PROVIDER:-auto}
+      - STATE_LABEL_PROVIDER=${STATE_LABEL_PROVIDER:-auto}
+      - OLLAMA_URL=${OLLAMA_URL:-http://host.docker.internal:11434}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.1:8b}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - ANTHROPIC_MODEL=${ANTHROPIC_MODEL:-claude-haiku-4-5-20251001}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    profiles: ["batch-analysis"]
+
+  backfill-timeseries:
+    build: ./mcp-server
+    entrypoint: ["node", "dist/backfill-timeseries.js"]
+    command: []
+    volumes:
+      - timeseries-data:/app/data
+      - analysis-data:/analysis-data:ro
+      - ${CORPUS_PATH}:/corpus:ro
+    environment:
+      - DUCKDB_PATH=/app/data/timeseries.duckdb
+      - ANALYSIS_SQLITE_PATH=/analysis-data/analysis.sqlite
+      - CORPUS_PATH=/corpus
+    profiles: ["backfill-timeseries"]

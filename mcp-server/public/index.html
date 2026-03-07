@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gravity Field Orchestrator</title>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  }
+}
+</script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: #0a0a1a;
+  color: #e0e0e0;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  overflow: hidden;
+  height: 100vh;
+}
+
+#app {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  height: 100vh;
+}
+
+/* ── Header ─────────────────────────────── */
+#header {
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(255,255,255,0.03);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+#header h1 {
+  font-size: 13px;
+  font-weight: 500;
+  color: #888;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+#query-input {
+  flex: 1;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: #fff;
+  padding: 8px 14px;
+  font-size: 14px;
+  font-family: inherit;
+  border-radius: 6px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+#query-input:focus {
+  border-color: rgba(120, 160, 255, 0.5);
+}
+
+#query-input::placeholder { color: #555; }
+
+#submit-btn {
+  background: rgba(120, 160, 255, 0.15);
+  border: 1px solid rgba(120, 160, 255, 0.3);
+  color: #8ab4ff;
+  padding: 8px 18px;
+  font-family: inherit;
+  font-size: 13px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+#submit-btn:hover { background: rgba(120, 160, 255, 0.25); }
+#submit-btn:disabled { opacity: 0.4; cursor: wait; }
+
+/* ── Main Canvas ────────────────────────── */
+#main {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  overflow: hidden;
+}
+
+#canvas-container {
+  position: relative;
+  overflow: hidden;
+}
+
+#canvas-container canvas {
+  display: block;
+}
+
+/* CSS2D label layer */
+#canvas-container .css2d-renderer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+/* 3D Labels */
+.label-fragment {
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  white-space: nowrap;
+  text-align: center;
+  pointer-events: none;
+  line-height: 1.4;
+}
+
+.label-fragment .type-tag {
+  font-size: 9px;
+  opacity: 0.5;
+  display: block;
+}
+
+.label-tool {
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 9px;
+  padding: 1px 4px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.label-query {
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 10px;
+  color: #666;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* ── Sidebar ────────────────────────────── */
+#sidebar {
+  background: rgba(255,255,255,0.02);
+  border-left: 1px solid rgba(255,255,255,0.06);
+  padding: 16px;
+  overflow-y: auto;
+  font-size: 12px;
+}
+
+.sidebar-section {
+  margin-bottom: 20px;
+}
+
+.sidebar-section h3 {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #666;
+  margin-bottom: 8px;
+}
+
+.fragment-tag {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 4px;
+  margin: 2px 4px 2px 0;
+  font-size: 11px;
+  border: 1px solid;
+}
+
+.score-bar-container {
+  margin-bottom: 4px;
+}
+
+.score-bar-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  margin-bottom: 2px;
+}
+
+.score-bar-label .name { color: #aaa; }
+.score-bar-label .value { color: #666; }
+
+.score-bar-track {
+  height: 4px;
+  background: rgba(255,255,255,0.05);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.score-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.6s ease-out;
+}
+
+.score-bar-fill.activated { background: #8ab4ff; }
+.score-bar-fill.inactive { background: rgba(255,255,255,0.1); }
+.score-bar-fill.always { background: #6be088; }
+.score-bar-fill.meta { background: #c89bff; }
+
+.cutoff-line {
+  border-top: 1px dashed rgba(255,100,100,0.4);
+  margin: 6px 0;
+  position: relative;
+}
+
+.cutoff-label {
+  position: absolute;
+  right: 0;
+  top: -8px;
+  font-size: 9px;
+  color: #ff6b6b;
+}
+
+/* ── Footer ─────────────────────────────── */
+#footer {
+  padding: 8px 20px;
+  background: rgba(255,255,255,0.02);
+  border-top: 1px solid rgba(255,255,255,0.06);
+  font-size: 11px;
+  color: #555;
+  display: flex;
+  gap: 20px;
+}
+
+#footer span { white-space: nowrap; }
+#footer .timing-value { color: #8ab4ff; }
+
+/* ── Empty state ────────────────────────── */
+#empty-state {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  color: #333;
+  z-index: 10;
+}
+
+#empty-state .title {
+  font-size: 24px;
+  margin-bottom: 8px;
+  color: #444;
+}
+
+#empty-state .sub {
+  font-size: 13px;
+  color: #333;
+}
+
+/* ── Loading spinner ────────────────────── */
+.loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 20;
+}
+
+.loading .orbit {
+  width: 60px;
+  height: 60px;
+  border: 2px solid rgba(120,160,255,0.1);
+  border-top-color: rgba(120,160,255,0.6);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.loading .label {
+  text-align: center;
+  margin-top: 12px;
+  font-size: 11px;
+  color: #555;
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="header">
+    <h1>Gravity Field</h1>
+    <input id="query-input" type="text" placeholder="Enter a query to visualize orbital mechanics..." autofocus>
+    <button id="submit-btn">Activate</button>
+  </div>
+
+  <div id="main">
+    <div id="canvas-container">
+      <div id="empty-state">
+        <div class="title">Gravitational Field Visualizer</div>
+        <div class="sub">Type a query to see the orbital mechanics of tool activation</div>
+      </div>
+    </div>
+    <div id="sidebar">
+      <div id="sidebar-content">
+        <div class="sidebar-section">
+          <h3>Fragments</h3>
+          <div id="fragments-list" style="color:#444">Waiting for query...</div>
+        </div>
+        <div class="sidebar-section">
+          <h3>Activation Scores</h3>
+          <div id="scores-list" style="color:#444">Waiting for query...</div>
+        </div>
+        <div class="sidebar-section">
+          <h3>Extracted Params</h3>
+          <div id="params-list" style="color:#444">Waiting for query...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="footer">
+    <span id="timing-info">Ready</span>
+  </div>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+
+// ── Colors ────────────────────────────────────────────
+const FRAGMENT_COLORS = {
+  concept:    { bg: 'rgba(100,160,255,0.15)', border: '#6490ff', text: '#8ab4ff', hex: 0x6490ff },
+  entity:     { bg: 'rgba(100,220,140,0.15)', border: '#64dc8c', text: '#6be088', hex: 0x64dc8c },
+  temporal:   { bg: 'rgba(255,180,80,0.15)',  border: '#ffb450', text: '#ffb450', hex: 0xffb450 },
+  emotional:  { bg: 'rgba(200,130,255,0.15)', border: '#c882ff', text: '#c89bff', hex: 0xc882ff },
+  relational: { bg: 'rgba(80,220,220,0.15)',  border: '#50dcdc', text: '#50dcdc', hex: 0x50dcdc },
+  archetypal: { bg: 'rgba(255,210,80,0.15)',  border: '#ffd250', text: '#ffd250', hex: 0xffd250 },
+};
+
+const CATEGORY_COLORS = {
+  search:        { css: '#5b9aff', hex: 0x5b9aff },
+  pattern:       { css: '#ffb347', hex: 0xffb347 },
+  graph:         { css: '#ff6b8a', hex: 0xff6b8a },
+  psychological: { css: '#c882ff', hex: 0xc882ff },
+  quantitative:  { css: '#50c8ff', hex: 0x50c8ff },
+  meta:          { css: '#888888', hex: 0x888888 },
+  other:         { css: '#666666', hex: 0x666666 },
+};
+
+// ── State ─────────────────────────────────────────────
+let currentData = null;
+
+// ── DOM refs ──────────────────────────────────────────
+const input = document.getElementById('query-input');
+const btn = document.getElementById('submit-btn');
+const container = document.getElementById('canvas-container');
+
+// ── Submit handler ────────────────────────────────────
+async function runDiagnose() {
+  const query = input.value.trim();
+  if (!query) return;
+
+  btn.disabled = true;
+  btn.textContent = 'Computing...';
+  document.getElementById('empty-state').style.display = 'none';
+
+  const loader = document.createElement('div');
+  loader.className = 'loading';
+  loader.id = 'loader';
+  loader.innerHTML = '<div class="orbit"></div><div class="label">Computing gravity field...</div>';
+  container.appendChild(loader);
+
+  try {
+    const resp = await fetch('/api/diagnose', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query }),
+    });
+    if (!resp.ok) throw new Error(await resp.text());
+    currentData = await resp.json();
+    render(currentData);
+  } catch (err) {
+    alert('Error: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Activate';
+    const l = document.getElementById('loader');
+    if (l) l.remove();
+  }
+}
+
+btn.addEventListener('click', runDiagnose);
+input.addEventListener('keydown', (e) => { if (e.key === 'Enter') runDiagnose(); });
+
+// ── Main render ───────────────────────────────────────
+function render(data) {
+  renderSidebar(data);
+  renderFooter(data);
+  renderOrbital3D(data);
+}
+
+// ── Sidebar ───────────────────────────────────────────
+function renderSidebar(data) {
+  const fragHtml = data.decomposition.fragments.map((f, i) => {
+    const c = FRAGMENT_COLORS[f.type] || FRAGMENT_COLORS.concept;
+    const pm = i === data.decomposition.primary_mass_index ? ' ★' : '';
+    return `<span class="fragment-tag" style="background:${c.bg};border-color:${c.border};color:${c.text}">[${f.type}] ${f.text}${pm}</span>`;
+  }).join('');
+  document.getElementById('fragments-list').innerHTML = fragHtml;
+
+  const sorted = [...data.tools].sort((a, b) => b.composite_score - a.composite_score);
+  const maxScore = sorted[0]?.composite_score || 1;
+
+  let scoresHtml = '';
+  let cutoffInserted = false;
+
+  for (const t of sorted) {
+    if (!cutoffInserted && t.composite_score < data.adaptive_cutoff) {
+      scoresHtml += `<div class="cutoff-line"><span class="cutoff-label">cutoff ${data.adaptive_cutoff.toFixed(3)}</span></div>`;
+      cutoffInserted = true;
+    }
+    const pct = (t.composite_score / maxScore * 100).toFixed(1);
+    const cls = t.is_always_active ? 'always' : t.is_meta ? 'meta' : t.activated ? 'activated' : 'inactive';
+    const catColor = (CATEGORY_COLORS[t.category] || CATEGORY_COLORS.other).css;
+    scoresHtml += `
+      <div class="score-bar-container">
+        <div class="score-bar-label">
+          <span class="name" style="color:${t.activated ? catColor : '#555'}">${t.name}</span>
+          <span class="value">${t.composite_score.toFixed(3)}</span>
+        </div>
+        <div class="score-bar-track">
+          <div class="score-bar-fill ${cls}" style="width:${pct}%"></div>
+        </div>
+      </div>`;
+  }
+  document.getElementById('scores-list').innerHTML = scoresHtml;
+
+  const ext = data.decomposition.extracted;
+  let paramsHtml = '';
+  if (ext.entities.length) paramsHtml += `<div style="margin-bottom:4px"><span style="color:#6be088">entities:</span> ${ext.entities.join(', ')}</div>`;
+  if (ext.concepts.length) paramsHtml += `<div style="margin-bottom:4px"><span style="color:#8ab4ff">concepts:</span> ${ext.concepts.join(', ')}</div>`;
+  if (ext.metrics.length) paramsHtml += `<div style="margin-bottom:4px"><span style="color:#50c8ff">metrics:</span> ${ext.metrics.join(', ')}</div>`;
+  if (ext.date_ranges.length) paramsHtml += `<div style="margin-bottom:4px"><span style="color:#ffb450">dates:</span> ${ext.date_ranges.map(r => `${r.start||'?'} to ${r.end||'?'}`).join(', ')}</div>`;
+  paramsHtml += `<div style="color:#666;margin-top:4px">search: "${ext.search_query}"</div>`;
+  document.getElementById('params-list').innerHTML = paramsHtml;
+}
+
+// ── Footer ────────────────────────────────────────────
+function renderFooter(data) {
+  const t = data.timing;
+  document.getElementById('timing-info').innerHTML = [
+    `<span>decompose: <span class="timing-value">${t.decompose_ms}ms</span></span>`,
+    `<span>embed: <span class="timing-value">${t.embed_ms}ms</span></span>`,
+    `<span>field: <span class="timing-value">${t.field_ms}ms</span></span>`,
+    `<span>total: <span class="timing-value">${t.total_ms}ms</span></span>`,
+    `<span>activated: <span class="timing-value">${data.activated_count} tools</span></span>`,
+  ].join('');
+}
+
+// ── 3D Orbital Visualization ──────────────────────────
+let renderer = null;
+let cssRenderer = null;
+let animationFrame = null;
+
+function renderOrbital3D(data) {
+  if (animationFrame) { cancelAnimationFrame(animationFrame); animationFrame = null; }
+
+  // Clean up previous renderers
+  if (renderer) {
+    renderer.dispose();
+    renderer.domElement.remove();
+  }
+  if (cssRenderer) {
+    cssRenderer.domElement.remove();
+  }
+
+  const width = container.clientWidth;
+  const height = container.clientHeight;
+
+  // ── Scene setup ────────────────────────
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a0a1a);
+
+  const camera = new THREE.PerspectiveCamera(50, width / height, 0.1, 200);
+  camera.position.set(0, 12, 16);
+  camera.lookAt(0, 0, 0);
+
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(width, height);
+  renderer.setPixelRatio(window.devicePixelRatio);
+  container.appendChild(renderer.domElement);
+
+  cssRenderer = new CSS2DRenderer();
+  cssRenderer.setSize(width, height);
+  cssRenderer.domElement.classList.add('css2d-renderer');
+  container.appendChild(cssRenderer.domElement);
+
+  // ── Controls ───────────────────────────
+  const controls = new OrbitControls(camera, cssRenderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.05;
+  controls.autoRotate = true;
+  controls.autoRotateSpeed = 0.3;
+  controls.minDistance = 4;
+  controls.maxDistance = 50;
+
+  // ── Lighting ───────────────────────────
+  scene.add(new THREE.AmbientLight(0x334466, 0.8));
+  const pointLight = new THREE.PointLight(0xffffff, 2, 60);
+  pointLight.position.set(0, 0, 0);
+  scene.add(pointLight);
+
+  // ── Starfield ──────────────────────────
+  const starGeo = new THREE.BufferGeometry();
+  const starPositions = new Float32Array(800 * 3);
+  for (let i = 0; i < 800; i++) {
+    const r = 40 + Math.random() * 60;
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    starPositions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+    starPositions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+    starPositions[i * 3 + 2] = r * Math.cos(phi);
+  }
+  starGeo.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+  scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({
+    color: 0xffffff, size: 0.06, transparent: true, opacity: 0.5
+  })));
+
+  // ── Data setup ─────────────────────────
+  const fragments = data.decomposition.fragments;
+  const tools = data.tools;
+  const nFrags = fragments.length;
+  const maxComposite = Math.max(...tools.map(t => t.composite_score));
+  const GOLDEN_ANGLE = 2.39996323;
+
+  // ── Query node (the star at center) ────
+  const queryGeo = new THREE.SphereGeometry(0.35, 32, 32);
+  const queryMat = new THREE.MeshBasicMaterial({ color: 0xffffee });
+  const queryMesh = new THREE.Mesh(queryGeo, queryMat);
+  scene.add(queryMesh);
+
+  // Query glow
+  const queryGlowGeo = new THREE.SphereGeometry(0.6, 32, 32);
+  const queryGlowMat = new THREE.MeshBasicMaterial({
+    color: 0xffffaa, transparent: true, opacity: 0.15
+  });
+  scene.add(new THREE.Mesh(queryGlowGeo, queryGlowMat));
+
+  const queryLabelDiv = document.createElement('div');
+  queryLabelDiv.className = 'label-query';
+  queryLabelDiv.style.color = '#888';
+  queryLabelDiv.textContent = data.query.length > 50 ? data.query.slice(0, 50) + '...' : data.query;
+  const queryLabel = new CSS2DObject(queryLabelDiv);
+  queryLabel.position.set(0, 0.7, 0);
+  queryMesh.add(queryLabel);
+
+  // ── Compute fragment weights (total pull across all tools) ──
+  const fragmentWeights = fragments.map((f, fi) => {
+    let totalPull = 0;
+    for (const t of tools) {
+      totalPull += Math.max(0, t.fragment_pulls[fi]) ** 2;
+    }
+    return Math.sqrt(totalPull);
+  });
+  const maxFragWeight = Math.max(...fragmentWeights);
+
+  // ── Fragment orbital parameters ────────
+  const MIN_FRAG_ORBIT = 2.5;
+  const MAX_FRAG_ORBIT = 6;
+
+  const fragOrbits = fragments.map((f, i) => {
+    const c = FRAGMENT_COLORS[f.type] || FRAGMENT_COLORS.concept;
+    const isPrimary = i === data.decomposition.primary_mass_index;
+    const weight = fragmentWeights[i] / maxFragWeight; // 0-1, higher = more pull
+
+    // Heavier fragments orbit closer to the query (star)
+    const orbitRadius = MIN_FRAG_ORBIT + (1 - weight) * (MAX_FRAG_ORBIT - MIN_FRAG_ORBIT);
+
+    // Sphere size based on weight
+    const sphereR = 0.12 + weight * 0.18;
+
+    // Angular velocity: closer = faster (Kepler's 3rd law approximation)
+    const baseSpeed = 0.0006 / Math.sqrt(orbitRadius / MIN_FRAG_ORBIT);
+    const direction = (i % 2 === 0) ? 1 : -1;
+
+    // Orbital inclination (spread them out in 3D)
+    const inclination = ((i * GOLDEN_ANGLE) % (Math.PI / 3)) - Math.PI / 6;
+
+    // Starting angle (spread evenly + jitter)
+    const startAngle = (i / nFrags) * Math.PI * 2 + (i * 0.3);
+
+    // Create mesh
+    const geo = new THREE.SphereGeometry(sphereR, 24, 24);
+    const mat = new THREE.MeshStandardMaterial({
+      color: c.hex,
+      emissive: c.hex,
+      emissiveIntensity: isPrimary ? 0.7 : 0.4,
+      transparent: true,
+      opacity: 0.95
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    scene.add(mesh);
+
+    // Glow for primary
+    let glowMesh = null;
+    if (isPrimary) {
+      const glowGeo = new THREE.SphereGeometry(sphereR * 2.5, 24, 24);
+      const glowMat = new THREE.MeshBasicMaterial({
+        color: c.hex, transparent: true, opacity: 0.12
+      });
+      glowMesh = new THREE.Mesh(glowGeo, glowMat);
+      scene.add(glowMesh);
+    }
+
+    // Label
+    const labelDiv = document.createElement('div');
+    labelDiv.className = 'label-fragment';
+    labelDiv.style.color = c.text;
+    labelDiv.innerHTML = `${f.text}<span class="type-tag">${f.type}${isPrimary ? ' ★' : ''}</span>`;
+    const label = new CSS2DObject(labelDiv);
+    label.position.set(0, sphereR + 0.25, 0);
+    mesh.add(label);
+
+    // Orbit trail ring
+    const trailGeo = new THREE.RingGeometry(orbitRadius - 0.015, orbitRadius + 0.015, 128);
+    const trailMat = new THREE.MeshBasicMaterial({
+      color: c.hex, transparent: true, opacity: 0.08, side: THREE.DoubleSide
+    });
+    const trail = new THREE.Mesh(trailGeo, trailMat);
+    trail.rotation.x = -Math.PI / 2 + inclination;
+    scene.add(trail);
+
+    return {
+      index: i,
+      mesh,
+      glowMesh,
+      label,
+      orbitRadius,
+      inclination,
+      angularVelocity: baseSpeed * direction,
+      angle: startAngle,
+      sphereR,
+      color: c,
+      weight,
+      isPrimary,
+      // Current position (updated in animation)
+      x: 0, y: 0, z: 0
+    };
+  });
+
+  // ── Compute tool orbital parameters ──
+  // Tools can orbit a single fragment (moon-like) or orbit the center if attracted to multiple
+  const toolOrbits = tools.map((t, i) => {
+    // Analyze pull distribution - is it concentrated or spread?
+    const pulls = t.fragment_pulls.map(p => Math.max(0, p));
+    const totalPull = pulls.reduce((a, b) => a + b, 0);
+    const normalizedPulls = totalPull > 0 ? pulls.map(p => p / totalPull) : pulls;
+
+    // Find primary and check concentration (entropy-like measure)
+    let maxPull = 0;
+    let primaryFragIndex = 0;
+    let significantFrags = []; // fragments with >15% of total pull
+    normalizedPulls.forEach((np, fi) => {
+      if (pulls[fi] > maxPull) {
+        maxPull = pulls[fi];
+        primaryFragIndex = fi;
+      }
+      if (np > 0.15) {
+        significantFrags.push({ index: fi, pull: pulls[fi], normalized: np });
+      }
+    });
+
+    // Concentration: if top fragment has >60% of pull, it's concentrated
+    const isConcentrated = normalizedPulls[primaryFragIndex] > 0.6;
+    const orbitMode = isConcentrated ? 'fragment' : 'center';
+
+    const pullStrength = t.composite_score / maxComposite;
+    const jitter = ((i * 7 + 3) % 11) / 11;
+    const direction = (i % 3 === 0) ? -1 : 1;
+
+    let orbitRadius, orbitCenter, inclination;
+
+    if (orbitMode === 'fragment') {
+      // Orbit around single primary fragment (moon-style)
+      const minToolOrbit = 0.4;
+      const maxToolOrbit = 1.8;
+      orbitRadius = t.activated
+        ? minToolOrbit + (1 - pullStrength) * (maxToolOrbit - minToolOrbit) * 0.5
+        : minToolOrbit + (1 - pullStrength) * (maxToolOrbit - minToolOrbit);
+      orbitCenter = { type: 'fragment', index: primaryFragIndex };
+      inclination = ((i * GOLDEN_ANGLE * 1.5) % (Math.PI / 2)) - Math.PI / 4;
+    } else {
+      // Orbit around center (query/star) - crossing through multiple fragment zones
+      // Radius should be in the zone where its attracting fragments orbit
+      const avgFragOrbitRadius = significantFrags.reduce((sum, sf) => {
+        return sum + fragOrbits[sf.index].orbitRadius * sf.normalized;
+      }, 0) / Math.max(1, significantFrags.reduce((s, sf) => s + sf.normalized, 0));
+
+      // Orbit at similar radius to attracting fragments, with some variation
+      const variation = (pullStrength - 0.5) * 1.5; // stronger = slightly inside, weaker = outside
+      orbitRadius = avgFragOrbitRadius + variation;
+      orbitRadius = Math.max(MIN_FRAG_ORBIT * 0.8, Math.min(MAX_FRAG_ORBIT * 1.2, orbitRadius));
+      orbitCenter = { type: 'center' };
+      // Different inclination to cross through fragment orbital planes
+      inclination = ((i * GOLDEN_ANGLE * 0.7) % (Math.PI / 2.5)) - Math.PI / 5;
+    }
+
+    // Angular velocity (faster for tighter orbits, Kepler-ish)
+    const baseSpeed = orbitMode === 'fragment'
+      ? 0.002 / Math.sqrt(orbitRadius / 0.4)
+      : 0.0008 / Math.sqrt(orbitRadius / MIN_FRAG_ORBIT);
+
+    // Starting angle
+    const startAngle = (i / tools.length) * Math.PI * 2 + jitter * Math.PI;
+
+    // Sphere
+    const catColors = CATEGORY_COLORS[t.category] || CATEGORY_COLORS.other;
+    const sphereR = t.activated ? 0.05 + pullStrength * 0.08 : 0.03;
+    const geo = new THREE.SphereGeometry(sphereR, 12, 12);
+    const mat = new THREE.MeshStandardMaterial({
+      color: catColors.hex,
+      emissive: catColors.hex,
+      emissiveIntensity: t.activated ? 0.6 : 0.1,
+      transparent: true,
+      opacity: t.activated ? 0.95 : 0.2,
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    scene.add(mesh);
+
+    // Label (only for activated tools)
+    let label = null;
+    if (t.activated) {
+      const labelDiv = document.createElement('div');
+      labelDiv.className = 'label-tool';
+      labelDiv.style.color = catColors.css;
+      labelDiv.style.opacity = '0.9';
+      labelDiv.textContent = t.name.replace(/_/g, ' ');
+      label = new CSS2DObject(labelDiv);
+      label.position.set(0, sphereR + 0.12, 0);
+      mesh.add(label);
+    }
+
+    return {
+      ...t,
+      mesh,
+      label,
+      orbitMode,
+      orbitCenter,
+      primaryFragIndex,
+      significantFrags,
+      maxPull,
+      orbitRadius,
+      inclination,
+      angularVelocity: baseSpeed * direction * (0.8 + jitter * 0.4),
+      angle: startAngle,
+      sphereR,
+    };
+  });
+
+  // ── Pull lines (tool → fragments) ──────
+  const pullLines = [];
+  for (const tool of toolOrbits) {
+    if (!tool.activated && !tool.is_always_active) continue;
+
+    // Lines to fragments
+    tool.fragment_pulls.forEach((pull, fi) => {
+      if (pull < 0.1) return;
+      const c = fragOrbits[fi].color;
+      const geo = new THREE.BufferGeometry();
+      const positions = new Float32Array(6);
+      geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      const mat = new THREE.LineBasicMaterial({
+        color: c.hex, transparent: true, opacity: Math.min(0.4, pull * 0.5)
+      });
+      const line = new THREE.Line(geo, mat);
+      scene.add(line);
+      pullLines.push({ line, geo, positions, tool, fragIndex: fi, isQuery: false });
+    });
+
+    // Line to query (center)
+    if (tool.query_pull > 0.15) {
+      const geo = new THREE.BufferGeometry();
+      const positions = new Float32Array(6);
+      geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      const mat = new THREE.LineBasicMaterial({
+        color: 0xffffaa, transparent: true, opacity: Math.min(0.25, tool.query_pull * 0.35)
+      });
+      const line = new THREE.Line(geo, mat);
+      scene.add(line);
+      pullLines.push({ line, geo, positions, tool, fragIndex: -1, isQuery: true });
+    }
+  }
+
+  // ── Animation loop ─────────────────────
+  let lastTime = performance.now();
+
+  function animate(now) {
+    const dt = now - lastTime;
+    lastTime = now;
+
+    // Update fragment positions (orbiting the query/star)
+    for (const frag of fragOrbits) {
+      frag.angle += frag.angularVelocity * dt;
+      const cosA = Math.cos(frag.angle);
+      const sinA = Math.sin(frag.angle);
+
+      frag.x = cosA * frag.orbitRadius;
+      frag.z = sinA * frag.orbitRadius * Math.cos(frag.inclination);
+      frag.y = sinA * frag.orbitRadius * Math.sin(frag.inclination);
+
+      frag.mesh.position.set(frag.x, frag.y, frag.z);
+      if (frag.glowMesh) {
+        frag.glowMesh.position.set(frag.x, frag.y, frag.z);
+      }
+    }
+
+    // Update tool positions
+    for (const tool of toolOrbits) {
+      tool.angle += tool.angularVelocity * dt;
+
+      const cosA = Math.cos(tool.angle);
+      const sinA = Math.sin(tool.angle);
+
+      if (tool.orbitMode === 'fragment') {
+        // Orbiting a single fragment (moon-style)
+        const frag = fragOrbits[tool.primaryFragIndex];
+
+        const localX = cosA * tool.orbitRadius;
+        const localZ = sinA * tool.orbitRadius * Math.cos(tool.inclination);
+        const localY = sinA * tool.orbitRadius * Math.sin(tool.inclination);
+
+        tool.mesh.position.set(
+          frag.x + localX,
+          frag.y + localY,
+          frag.z + localZ
+        );
+      } else {
+        // Orbiting the center (crossing through multiple fragment zones)
+        const x = cosA * tool.orbitRadius;
+        const z = sinA * tool.orbitRadius * Math.cos(tool.inclination);
+        const y = sinA * tool.orbitRadius * Math.sin(tool.inclination);
+
+        tool.mesh.position.set(x, y, z);
+      }
+    }
+
+    // Update pull lines
+    for (const pl of pullLines) {
+      const tp = pl.tool.mesh.position;
+      let sx, sy, sz;
+
+      if (pl.isQuery) {
+        sx = 0; sy = 0; sz = 0;
+      } else {
+        const frag = fragOrbits[pl.fragIndex];
+        sx = frag.x;
+        sy = frag.y;
+        sz = frag.z;
+      }
+
+      pl.positions[0] = sx;
+      pl.positions[1] = sy;
+      pl.positions[2] = sz;
+      pl.positions[3] = tp.x;
+      pl.positions[4] = tp.y;
+      pl.positions[5] = tp.z;
+      pl.geo.attributes.position.needsUpdate = true;
+    }
+
+    controls.update();
+    renderer.render(scene, camera);
+    cssRenderer.render(scene, camera);
+
+    animationFrame = requestAnimationFrame(animate);
+  }
+
+  animationFrame = requestAnimationFrame(animate);
+
+  // ── Resize handler ─────────────────────
+  const onResize = () => {
+    const w = container.clientWidth;
+    const h = container.clientHeight;
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    renderer.setSize(w, h);
+    cssRenderer.setSize(w, h);
+  };
+  window.addEventListener('resize', onResize);
+}
+</script>
+</body>
+</html>
