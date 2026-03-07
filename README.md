@@ -352,3 +352,36 @@ cd ../web-ui && npm run check
 # Python utility tests (embeddings service)
 cd ../embeddings-service && pytest -q
 ```
+
+## Roadmap
+
+This system works. It's been battle-tested on 1,414 entries and 1.5M words of real data across six years. But it was built fast, by one person, in the heat of discovery. The code reflects that — it's functional, not polished. Here's where it's going.
+
+### Now
+
+- **Open source release** — you're looking at it. The architecture is public. Bring your own corpus.
+- **Wellfile-Intelligence** — same architecture adapted for oil and gas document processing. Different tool registry, different fragment taxonomy, same gravity math. Proof that the pattern is domain-agnostic.
+
+### Next
+
+- **Codebase refactor** — the current code was written to prove the architecture works. It did. Now it needs to be cleaned up, better typed, better tested, and better documented at the function level. The bones are right. The skin needs work.
+- **Gravity model hardening** — the L2 norm activation and gap detection work well empirically. Need formal benchmarking against manually-evaluated query sets. The learning loop (ledger) needs more data before reliability bias is fully trusted.
+- **Packaging for others** — right now setup requires Docker knowledge and manual corpus preparation. The goal is: clone, point at a folder of text files, run one command, start querying.
+- **Predictive layer** — with enough longitudinal data, the system can forecast psychological vulnerability windows, optimal performance periods, and pre-crisis linguistic markers. The math is straightforward time series forecasting on the 8-dimensional profiles. The data just needs depth.
+
+### Later
+
+- **Language refactor evaluation** — once the orchestration pattern is stable and proven at scale, evaluate Rust (zero-cost concurrency), Go (goroutine-native dispatch), or Elixir/OTP (fault-tolerant supervised agent processes) for the orchestrator core.
+- **Multi-corpus federation** — a single gravity orchestrator dispatching across multiple corpora simultaneously. Personal writing + oil and gas documents + legal archives, all queryable through one interface.
+- **Voice and real-time input** — the architecture doesn't care if text comes from a keyboard, a voice transcript, or eventually a neural interface. The capture method is temporary. The processing layer is permanent.
+- **Clinical and recovery applications** — longitudinal psychological profiling for therapy, recovery programs, and mental health monitoring. The 8-dimensional model was built for one person. It was designed to work for anyone.
+
+### Philosophy
+
+This system was built by hand because no one else was building it. It came from a personal writing practice, a recovery journey, and the realization that a million words of honest self-examination is both the hardest dataset to produce and the most valuable one to process. The code will get better. The architecture will scale. The corpus keeps growing every day.
+
+Contributions, questions, and forks are welcome. If you build something on this, I want to hear about it.
+
+---
+
+*Built in Oklahoma City by [Jer Nguyen](https://www.linkedin.com/in/jernguyen/) — self-taught AI engineer, systems architect, writer.*
