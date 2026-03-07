@@ -384,4 +384,6 @@ Contributions, questions, and forks are welcome. If you build something on this,
 
 ---
 
-*Built in Oklahoma City by [Jer Nguyen](https://www.linkedin.com/in/jernguyen/) — self-taught AI engineer, systems architect, writer.*
+*Built in Oklahoma City by Jer Nguyen — self-taught AI engineer, systems architect, writer.*
+
+*[LinkedIn](https://www.linkedin.com/in/jerrypn/) · [jerry@hewesnguyen.com](mailto:jerry@hewesnguyen.com)*
