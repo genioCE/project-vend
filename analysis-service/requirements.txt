@@ -4,3 +4,6 @@ pydantic==2.10.4
 httpx==0.27.2
 anthropic>=0.40.0
 pytest==8.3.4
+# Fine-tuned state classifier (CPU inference)
+torch>=2.0.0
+sentence-transformers>=2.2.0

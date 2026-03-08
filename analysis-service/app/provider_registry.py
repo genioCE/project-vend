@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from .entry_summary_provider import (
     ClaudeEntrySummaryProvider,
@@ -19,6 +20,9 @@ from .state_label_provider import (
     OllamaStateLabelProvider,
     StateLabelProvider,
 )
+
+# Lazy-imported to avoid loading PyTorch when provider isn't used
+# from .finetuned_state_label_provider import FinetunedStateLabelProvider
 
 logger = logging.getLogger("analysis-service.provider-registry")
 
@@ -61,6 +65,24 @@ def get_provider_registry() -> ProviderRegistry:
         "ollama": OllamaStateLabelProvider(ollama_url=ollama_url, model=ollama_model),
     }
 
+    # Register finetuned provider when model directory is available
+    finetuned_model_dir = os.environ.get("FINETUNED_MODEL_DIR", "").strip()
+    if finetuned_model_dir and Path(finetuned_model_dir).exists():
+        try:
+            from .finetuned_state_label_provider import FinetunedStateLabelProvider
+
+            state_label_providers["finetuned"] = FinetunedStateLabelProvider(
+                model_dir=finetuned_model_dir,
+            )
+            logger.info(
+                "finetuned_provider_registered",
+                extra={"model_dir": finetuned_model_dir},
+            )
+        except Exception as e:
+            logger.warning(f"finetuned_provider_failed: {e}")
+    elif finetuned_model_dir:
+        logger.warning(f"finetuned_provider_skipped: model dir not found at {finetuned_model_dir}")
+
     if anthropic_api_key:
         summary_providers["anthropic"] = ClaudeEntrySummaryProvider(
             api_key=anthropic_api_key, model=anthropic_model,
@@ -94,11 +116,13 @@ def _resolve_default(
 ) -> str:
     if provider_name == "auto":
         # Prefer hybrid (1 Claude call) over full anthropic (2 calls)
-        # Fall back to local (0 calls) when no API key
+        # Then finetuned (neural, $0) over local rules ($0)
         if "hybrid" in providers:
             return "hybrid"
         if "anthropic" in providers:
             return "anthropic"
+        if label == "state_label" and "finetuned" in providers:
+            return "finetuned"
         return "local" if "local" in providers else "ollama"
     if provider_name in providers:
         return provider_name

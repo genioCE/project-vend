@@ -56,7 +56,7 @@ def _build_chunks(file_path: Path, plain_text: str) -> list[EntryChunk]:
 
 
 _VALID_SUMMARY_PROVIDERS = {"ollama", "anthropic", "hybrid", "local"}
-_VALID_STATE_PROVIDERS = {"ollama", "anthropic", "local"}
+_VALID_STATE_PROVIDERS = {"ollama", "anthropic", "local", "finetuned"}
 
 
 def _is_entry_done(entry_id: str, summary_service, state_label_service) -> bool:
@@ -259,7 +259,7 @@ def main():
     parser.add_argument("--dry-run", action="store_true", help="Show what would be analyzed without running")
     parser.add_argument(
         "--provider",
-        choices=["auto", "mock", "local", "hybrid", "ollama", "anthropic"],
+        choices=["auto", "mock", "local", "hybrid", "ollama", "anthropic", "finetuned"],
         default=None,
         help="Override analysis provider (default: use env var)",
     )

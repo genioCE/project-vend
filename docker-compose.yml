@@ -95,6 +95,7 @@ services:
       - ENTRY_SUMMARY_DB_PATH=/service/data/analysis.sqlite
       - ENTRY_SUMMARY_PROVIDER=${ENTRY_SUMMARY_PROVIDER:-auto}
       - STATE_LABEL_PROVIDER=${STATE_LABEL_PROVIDER:-auto}
+      - FINETUNED_MODEL_DIR=${FINETUNED_MODEL_DIR:-}
       - OLLAMA_URL=${OLLAMA_URL:-http://host.docker.internal:11434}
       - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.1:8b}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
@@ -227,6 +228,7 @@ services:
       - ENTRY_SUMMARY_DB_PATH=/service/data/analysis.sqlite
       - ENTRY_SUMMARY_PROVIDER=${ENTRY_SUMMARY_PROVIDER:-auto}
       - STATE_LABEL_PROVIDER=${STATE_LABEL_PROVIDER:-auto}
+      - FINETUNED_MODEL_DIR=${FINETUNED_MODEL_DIR:-}
       - OLLAMA_URL=${OLLAMA_URL:-http://host.docker.internal:11434}
       - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.1:8b}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
