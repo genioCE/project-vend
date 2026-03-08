@@ -78,7 +78,7 @@ This runs all 5 ingestion pipelines (vector embeddings, knowledge graph, psychol
 - **8-dimensional psychological profiling**: Every entry is scored across valence, activation, agency, certainty, relational openness, self-trust, time orientation, and integration.
 - **Four storage engines in concert**: Vector search (ChromaDB) + graph search (Neo4j) + LLM analysis (Claude/Ollama) + time series (DuckDB).
 - **Domain-agnostic**: The same pattern works for personal writing, legal archives, medical records, or any corpus of unstructured text.
-- **Fully local option**: Runs entirely on local infrastructure. Fine-tuned neural model for psychological profiling ($0, no API). Ollama or Anthropic API optional for summaries.
+- **Fully local option**: Runs entirely on local infrastructure. Fine-tuned neural models for psychological profiling and theme classification ($0, no API). Ollama or Anthropic API optional for summaries.
 
 ## Claude Desktop Integration
 
@@ -139,7 +139,7 @@ docker compose --profile backfill-timeseries run --rm backfill-timeseries
 
 Instead of Claude manually selecting from 22 tools, it calls `orchestrated_query` with a natural language question. The system then:
 
-1. **Decomposes** the query into typed semantic fragments (concept, entity, temporal, emotional, relational, archetypal)
+1. **Decomposes** the query into typed semantic fragments (concept, entity, temporal, emotional, relational, archetypal) — 91% of queries resolve via rule-based decomposition ($0), with Claude fallback for ambiguous queries only
 2. **Embeds** each fragment + the full query via the embeddings service
 3. **Computes a gravity field** — cosine similarity between fragment vectors and 22 tool identity vectors
 4. **Activates tools** via adaptive gap detection (finds the natural elbow in sorted scores)
@@ -224,17 +224,19 @@ docker compose --profile backfill-timeseries run --rm backfill-timeseries
 
 The `analysis-service` provides per-entry analysis with a tiered provider system:
 
-| Provider | Summary | State Labels | Cost | Quality |
-|----------|---------|-------------|------|---------|
-| `anthropic` | Claude API | Claude API | ~$10/corpus | Gold standard |
-| `hybrid` | Claude API | Finetuned neural | ~$3/corpus | Best value |
-| `finetuned` | (uses default) | Finetuned neural | $0 | 90% match to Claude |
-| `local` | Rule-based extraction | Finetuned neural* | $0 | Baseline summaries, good state |
-| `ollama` | Ollama LLM | Ollama LLM | $0 (local GPU) | Good |
+| Provider | Summary | State Labels | Themes | Cost | Quality |
+|----------|---------|-------------|--------|------|---------|
+| `anthropic` | Claude API | Claude API | Claude API | ~$10/corpus | Gold standard |
+| `hybrid` | Claude API | Finetuned neural | Finetuned neural | ~$3/corpus | Best value |
+| `finetuned` | (uses default) | Finetuned neural | Finetuned neural | $0 | 90% match to Claude |
+| `local` | Rule-based extraction | Finetuned neural* | Finetuned neural* | $0 | Baseline summaries, good state + themes |
+| `ollama` | Ollama LLM | Ollama LLM | Ollama LLM | $0 (local GPU) | Good |
 
 *Falls back to rule-based engine when finetuned model weights are not available.
 
-The **finetuned** state classifier is a sentence-transformer (all-mpnet-base-v2) fine-tuned on Claude-labeled data with a regression head, producing 8-dimension psychological state scores at ~100ms per entry on CPU. Trained with 5-fold cross-validation on ~1,400 entries; achieves MAE=0.169 and Pearson r=0.662 vs Claude on held-out test data.
+The **finetuned state classifier** is a sentence-transformer (all-mpnet-base-v2) fine-tuned on Claude-labeled data with a regression head, producing 8-dimension psychological state scores at ~100ms per entry on CPU. Trained with 5-fold cross-validation on ~1,400 entries; achieves MAE=0.169 and Pearson r=0.662 vs Claude on held-out test data.
+
+The **finetuned theme classifier** uses the same base encoder with a multi-label classification head. Claude's 5,500+ unique theme strings are clustered via embedding-based agglomerative clustering into 10 canonical labels, then trained with BCEWithLogitsLoss. Achieves macro F1=0.286 on held-out test data at ~300ms per entry on CPU.
 
 **Auto-resolution** prefers `hybrid > anthropic > finetuned > local` based on available API keys and model weights.
 
@@ -274,6 +276,8 @@ cd embeddings-service && pytest -q # Python unit tests
 - SSE transport for Claude Desktop (URL-based config)
 - npm publish (`npx corpus-intelligence`)
 - Fine-tuned state classifier (neural model trained on Claude labels, $0 inference)
+- Fine-tuned theme classifier (multi-label, 10 canonical themes from 5,500+ Claude labels, $0 inference)
+- Hybrid rule-based query decomposition (91% local, Claude fallback)
 
 ### Next
 - Web UI overhaul
