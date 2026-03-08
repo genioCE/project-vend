@@ -265,8 +265,8 @@ cd embeddings-service && pytest -q # Python unit tests
 - npm publish (`npx corpus-intelligence`)
 
 ### Next
+- Web UI overhaul
 - Docker image registry (GHCR) for faster setup
-- Subscription auth (Claude Pro/Max/Team via OAuth)
 - Gravity model benchmarking against manually-evaluated query sets
 
 ### Later
