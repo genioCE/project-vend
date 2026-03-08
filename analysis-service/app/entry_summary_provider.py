@@ -85,10 +85,18 @@ class LocalEntrySummaryProvider:
     Uses hardened regex patterns from the gravity decomposer for entity detection,
     shared keyword lexicons for emotions/decisions/archetypes, and frequency-based
     theme extraction with emotion-proximity boosting.
+
+    When a finetuned theme provider is available, uses neural theme predictions
+    instead of rule-based extraction for higher quality theme labels.
     """
 
     model_version = "local-extractor-v1"
     prompt_version = "entry-summary-local-v1"
+
+    def __init__(self, theme_provider=None):
+        self._theme_provider = theme_provider
+        if theme_provider is not None:
+            self.prompt_version = "entry-summary-local-finetuned-themes-v1"
 
     def generate(
         self,
@@ -109,8 +117,17 @@ class LocalEntrySummaryProvider:
         detailed_summary = " ".join(sentences[:4]).strip() if sentences else _truncate_words(normalized, 120)
 
         entities = extract_entities_local(entry_text)
-        themes = extract_themes_local(entry_text)
         decisions = extract_decisions_local(entry_text)
+
+        # Use finetuned theme classifier when available, else rule-based
+        if self._theme_provider is not None:
+            try:
+                themes = self._theme_provider.predict_themes(entry_text)
+            except Exception:
+                logger.warning("finetuned_theme_fallback", exc_info=True)
+                themes = extract_themes_local(entry_text)
+        else:
+            themes = extract_themes_local(entry_text)
 
         return EntrySummaryGeneration(
             short_summary=short_summary or "No summary available.",

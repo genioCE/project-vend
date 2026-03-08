@@ -23,6 +23,7 @@ from .state_label_provider import (
 
 # Lazy-imported to avoid loading PyTorch when provider isn't used
 # from .finetuned_state_label_provider import FinetunedStateLabelProvider
+# from .finetuned_theme_provider import FinetunedThemeProvider
 
 logger = logging.getLogger("analysis-service.provider-registry")
 
@@ -51,7 +52,24 @@ def get_provider_registry() -> ProviderRegistry:
     anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
     anthropic_model = os.environ.get("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001").strip()
 
-    local_summary = LocalEntrySummaryProvider()
+    # Register finetuned theme provider when model directory is available
+    finetuned_theme_model_dir = os.environ.get("FINETUNED_THEME_MODEL_DIR", "").strip()
+    theme_provider = None
+    if finetuned_theme_model_dir and Path(finetuned_theme_model_dir).exists():
+        try:
+            from .finetuned_theme_provider import FinetunedThemeProvider
+
+            theme_provider = FinetunedThemeProvider(model_dir=finetuned_theme_model_dir)
+            logger.info(
+                "finetuned_theme_provider_registered",
+                extra={"model_dir": finetuned_theme_model_dir},
+            )
+        except Exception as e:
+            logger.warning(f"finetuned_theme_provider_failed: {e}")
+    elif finetuned_theme_model_dir:
+        logger.warning(f"finetuned_theme_provider_skipped: model dir not found at {finetuned_theme_model_dir}")
+
+    local_summary = LocalEntrySummaryProvider(theme_provider=theme_provider)
     summary_providers: dict[str, EntrySummaryProvider] = {
         "mock": local_summary,  # backward compat: "mock" now uses local extraction
         "local": local_summary,
@@ -65,7 +83,7 @@ def get_provider_registry() -> ProviderRegistry:
         "ollama": OllamaStateLabelProvider(ollama_url=ollama_url, model=ollama_model),
     }
 
-    # Register finetuned provider when model directory is available
+    # Register finetuned state label provider when model directory is available
     finetuned_model_dir = os.environ.get("FINETUNED_MODEL_DIR", "").strip()
     if finetuned_model_dir and Path(finetuned_model_dir).exists():
         try:
@@ -75,13 +93,13 @@ def get_provider_registry() -> ProviderRegistry:
                 model_dir=finetuned_model_dir,
             )
             logger.info(
-                "finetuned_provider_registered",
+                "finetuned_state_provider_registered",
                 extra={"model_dir": finetuned_model_dir},
             )
         except Exception as e:
-            logger.warning(f"finetuned_provider_failed: {e}")
+            logger.warning(f"finetuned_state_provider_failed: {e}")
     elif finetuned_model_dir:
-        logger.warning(f"finetuned_provider_skipped: model dir not found at {finetuned_model_dir}")
+        logger.warning(f"finetuned_state_provider_skipped: model dir not found at {finetuned_model_dir}")
 
     if anthropic_api_key:
         summary_providers["anthropic"] = ClaudeEntrySummaryProvider(

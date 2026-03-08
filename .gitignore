@@ -27,6 +27,7 @@ chromadb/
 *.sql.gz
 *.dump
 *backup*
+*.bak-*
 
 # Docker volumes
 volumes/
@@ -41,6 +42,12 @@ dist/
 *.bin
 *.onnx
 training_data.jsonl
+# Theme training artifacts (loose files in scripts/, not model config dirs)
+/analysis-service/scripts/theme_training_data.jsonl
+/analysis-service/scripts/theme_clusters.json
+/analysis-service/scripts/theme_label_index.json
+/analysis-service/scripts/theme_splits.json
+/analysis-service/scripts/theme_thresholds.json
 
 # Python
 __pycache__/
