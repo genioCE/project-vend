@@ -35,6 +35,13 @@ volumes/
 node_modules/
 dist/
 
+# ML model weights & training data (too large for git)
+*.safetensors
+*.pt
+*.bin
+*.onnx
+training_data.jsonl
+
 # Python
 __pycache__/
 *.pyc

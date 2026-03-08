@@ -118,11 +118,18 @@ class EntrySummaryService:
     def get_entry_summary(self, entry_id: str) -> EntrySummaryRecord | None:
         return self.store.get(entry_id)
 
+    # Providers that only handle state labels, not summaries.
+    # When one of these is requested, summary generation uses the default provider.
+    _STATE_LABEL_ONLY_PROVIDERS = {"finetuned"}
+
     def _resolve_provider_name(self, requested: str | None) -> str:
         if requested and requested != "auto":
-            if requested not in self.providers:
-                raise ValueError(f"Unsupported provider: {requested}")
-            return requested
+            if requested in self.providers:
+                return requested
+            if requested in self._STATE_LABEL_ONLY_PROVIDERS:
+                # State-label-only provider — fall back to default for summaries
+                return self.default_provider_name
+            raise ValueError(f"Unsupported provider: {requested}")
         return self.default_provider_name
 
     def _generate_with_fallback(

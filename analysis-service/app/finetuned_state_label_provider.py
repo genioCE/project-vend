@@ -60,17 +60,21 @@ class FinetunedStateLabelProvider:
             raise FileNotFoundError(f"Regression head not found at {head_path}")
 
         # Load training config for architecture params
+        input_dim = 768
         hidden_dim = 256
         if config_path.exists():
             with config_path.open() as f:
                 config = json.load(f)
+                input_dim = config.get("input_dim", 768)
                 hidden_dim = config.get("hidden_dim", 256)
-                self._model_version = config.get("model_version", "finetuned-mpnet-v1")
+                self._model_version = config.get("model_version", "finetuned-v1")
+                logger.info(f"Config: base_model={config.get('base_model', 'unknown')}, "
+                            f"input_dim={input_dim}, hidden_dim={hidden_dim}")
         else:
-            self._model_version = "finetuned-mpnet-v1"
+            self._model_version = "finetuned-v1"
 
         self._encoder = SentenceTransformer(str(encoder_path))
-        self._head = _RegressionHead(input_dim=768, hidden_dim=hidden_dim, output_dim=8)
+        self._head = _RegressionHead(input_dim=input_dim, hidden_dim=hidden_dim, output_dim=8)
         self._head.load_state_dict(
             torch.load(str(head_path), map_location="cpu", weights_only=True)
         )
@@ -98,12 +102,21 @@ class FinetunedStateLabelProvider:
             embeddings = self._encoder.encode(
                 text_chunks,
                 show_progress_bar=False,
-                convert_to_numpy=False,
                 normalize_embeddings=True,
             )
-            # embeddings shape: (n_chunks, 768)
-            if not isinstance(embeddings, torch.Tensor):
-                embeddings = torch.tensor(embeddings, dtype=torch.float32)
+            # encode() may return numpy array, list of tensors, or stacked tensor
+            if isinstance(embeddings, list):
+                embeddings = torch.stack(
+                    [e if isinstance(e, torch.Tensor) else torch.tensor(e) for e in embeddings]
+                ).float()
+            elif not isinstance(embeddings, torch.Tensor):
+                import numpy as np
+                if isinstance(embeddings, np.ndarray):
+                    embeddings = torch.from_numpy(embeddings).float()
+                else:
+                    embeddings = torch.tensor(embeddings, dtype=torch.float32)
+            else:
+                embeddings = embeddings.float()
 
             pooled = embeddings.mean(dim=0, keepdim=True)  # (1, 768)
             logits = self._head(pooled)  # (1, 8)
