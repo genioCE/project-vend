@@ -15,7 +15,7 @@ function sleep(ms: number): Promise<void> {
 }
 
 export async function printBanner(): Promise<void> {
-  const art = figlet.textSync("CORPUS", { font: "Sub-Zero" });
+  const art = figlet.textSync("CORPUS", { font: "3D-ASCII" });
   const artLines = art.split("\n").filter((l) => l.trim().length > 0);
   const version = "v0.2.0";
   const tagline = "private intelligence for your writing";
