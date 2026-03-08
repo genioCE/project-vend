@@ -62,8 +62,8 @@ class StateLabelProvider(Protocol):
         """Generate state labels for a single entry."""
 
 
-class MockStateLabelProvider:
-    """Wraps DeterministicStateLabeler, maps its output into StateLabelGeneration."""
+class LocalStateLabelProvider:
+    """Rule-based state profiler using 192 hand-crafted signal rules. No API calls."""
 
     def __init__(self) -> None:
         self._labeler = DeterministicStateLabeler()
@@ -110,9 +110,13 @@ class MockStateLabelProvider:
             observed_signals=signals,
             model_version=response.version.model_version,
             prompt_version=response.version.prompt_version,
-            provider="mock",
-            mock=True,
+            provider="local",
+            mock=False,
         )
+
+
+# Backward compat alias
+MockStateLabelProvider = LocalStateLabelProvider
 
 
 # ---------------------------------------------------------------------------

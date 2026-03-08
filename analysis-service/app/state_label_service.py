@@ -41,7 +41,7 @@ class StateLabelService:
         store: StateLabelStore,
         providers: dict[str, StateLabelProvider],
         default_provider_name: str,
-        fallback_provider_name: str = "mock",
+        fallback_provider_name: str = "local",
     ):
         self.store = store
         self.providers = providers

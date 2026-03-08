@@ -36,7 +36,7 @@ class EntrySummaryService:
         store: EntrySummaryStore,
         providers: dict[str, EntrySummaryProvider],
         default_provider_name: str,
-        fallback_provider_name: str = "mock",
+        fallback_provider_name: str = "local",
         state_label_service: StateLabelService | None = None,
     ):
         self.store = store
@@ -65,13 +65,17 @@ class EntrySummaryService:
         )
 
         if self.state_label_service is not None:
+            # Hybrid/local providers use rule-based state labels (no API call)
+            sl_provider = request.provider
+            if sl_provider in ("hybrid", "local"):
+                sl_provider = "local"
             sl_request = StateLabelGenerateRequest(
                 entry_id=request.entry_id,
                 entry_date=request.entry_date,
                 source_file=request.source_file,
                 chunks=ordered_chunks,
                 force_regenerate=request.force_regenerate,
-                provider=request.provider,
+                provider=sl_provider,
             )
             sl_record = self.state_label_service.generate_and_persist(sl_request)
             state_profile = sl_record.state_profile

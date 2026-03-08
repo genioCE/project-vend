@@ -55,14 +55,16 @@ def _build_chunks(file_path: Path, plain_text: str) -> list[EntryChunk]:
     ]
 
 
+_VALID_SUMMARY_PROVIDERS = {"ollama", "anthropic", "hybrid", "local"}
+_VALID_STATE_PROVIDERS = {"ollama", "anthropic", "local"}
+
+
 def _is_entry_done(entry_id: str, summary_service, state_label_service) -> bool:
     """Check if entry passes all quality gates for skip-done."""
     existing_summary = summary_service.get_entry_summary(entry_id)
     if existing_summary is None:
         return False
-    if existing_summary.processing.provider != "ollama":
-        return False
-    if existing_summary.processing.prompt_version != OllamaEntrySummaryProvider.prompt_version:
+    if existing_summary.processing.provider not in _VALID_SUMMARY_PROVIDERS:
         return False
     if not existing_summary.themes:
         return False
@@ -77,9 +79,7 @@ def _is_entry_done(entry_id: str, summary_service, state_label_service) -> bool:
     existing_labels = state_label_service.get_state_labels(entry_id)
     if existing_labels is None:
         return False
-    if existing_labels.processing.provider != "ollama":
-        return False
-    if existing_labels.processing.prompt_version != OllamaStateLabelProvider.prompt_version:
+    if existing_labels.processing.provider not in _VALID_STATE_PROVIDERS:
         return False
     # Check for flatlined state labels
     if all(dim.score == 0.0 for dim in existing_labels.state_profile.dimensions):
@@ -259,7 +259,7 @@ def main():
     parser.add_argument("--dry-run", action="store_true", help="Show what would be analyzed without running")
     parser.add_argument(
         "--provider",
-        choices=["auto", "mock", "ollama", "anthropic"],
+        choices=["auto", "mock", "local", "hybrid", "ollama", "anthropic"],
         default=None,
         help="Override analysis provider (default: use env var)",
     )
@@ -272,7 +272,7 @@ def main():
     parser.add_argument(
         "--skip-done",
         action="store_true",
-        help="Skip entries already processed by Ollama (re-process mock fallback entries)",
+        help="Skip entries already processed by a valid provider (local, hybrid, anthropic, ollama)",
     )
     args = parser.parse_args()
 

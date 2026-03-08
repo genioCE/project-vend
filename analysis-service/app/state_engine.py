@@ -25,7 +25,7 @@ from .models import (
 )
 
 STATE_SCHEMA_VERSION = "state-profile-v1"
-STATE_PROMPT_VERSION = "state-engine-mock-v1"
+STATE_PROMPT_VERSION = "state-engine-local-v1"
 STATE_MODEL_VERSION = "deterministic-ruleset-v1"
 
 SignalCategory = Literal[
@@ -580,7 +580,7 @@ class DeterministicStateLabeler:
                 schema_version=STATE_SCHEMA_VERSION,
                 prompt_version=STATE_PROMPT_VERSION,
                 model_version=STATE_MODEL_VERSION,
-                mock=True,
+                mock=False,
             ),
         )
 

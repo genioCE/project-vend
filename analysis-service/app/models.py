@@ -230,7 +230,7 @@ class EntrySummaryGenerateRequest(BaseModel):
     source_file: str | None = Field(default=None, max_length=512)
     chunks: list[EntryChunk] = Field(min_length=1, max_length=500)
     force_regenerate: bool = False
-    provider: Literal["auto", "mock", "ollama", "anthropic"] | None = None
+    provider: Literal["auto", "mock", "local", "hybrid", "ollama", "anthropic"] | None = None
 
     @field_validator("entry_id", "source_file")
     @classmethod
@@ -298,7 +298,7 @@ class StateLabelGenerateRequest(BaseModel):
     source_file: str | None = Field(default=None, max_length=512)
     chunks: list[EntryChunk] = Field(min_length=1, max_length=500)
     force_regenerate: bool = False
-    provider: Literal["auto", "mock", "ollama", "anthropic"] | None = None
+    provider: Literal["auto", "mock", "local", "hybrid", "ollama", "anthropic"] | None = None
 
     @field_validator("entry_id", "source_file")
     @classmethod

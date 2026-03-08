@@ -10,65 +10,25 @@ from typing import TypedDict
 import spacy
 from spacy.tokens import Span
 
+from .corpus_utils.extraction_lexicons import (
+    ARCHETYPE_PATTERNS as _SHARED_ARCHETYPE_PATTERNS,
+    DECISION_PATTERNS as _SHARED_DECISION_PATTERNS,
+    EMOTION_LEXICON as _SHARED_EMOTION_LEXICON,
+    STOP_CONCEPTS as _SHARED_STOP_CONCEPTS,
+    TRANSITION_PATTERNS as _SHARED_TRANSITION_PATTERNS,
+)
 from .style_profile import canonicalize_alias, get_entity_aliases, get_style_profile
 
 logger = logging.getLogger(__name__)
 
 nlp = spacy.load("en_core_web_sm")
 
-DEFAULT_EMOTION_LEXICON: dict[str, list[str]] = {
-    "joy": ["happy", "joy", "grateful", "excited", "delighted", "thrilled", "elated", "blessed", "thankful", "cheerful", "wonderful", "alive"],
-    "sadness": ["sad", "grief", "loss", "mourning", "heartbroken", "depressed", "sorrowful", "melancholy", "lonely", "disappointed", "heavy"],
-    "anger": ["angry", "furious", "frustrated", "irritated", "resentful", "bitter", "enraged", "annoyed", "hostile"],
-    "fear": ["afraid", "anxious", "worried", "scared", "terrified", "nervous", "dread", "panic", "uneasy", "overwhelmed"],
-    "love": ["love", "compassion", "affection", "tenderness", "warmth", "caring", "devotion", "adoration", "intimacy"],
-    "peace": ["peace", "calm", "serene", "tranquil", "still", "centered", "grounded", "quiet", "settled", "stillness"],
-    "confusion": ["confused", "uncertain", "lost", "bewildered", "torn", "conflicted", "ambivalent", "unclear"],
-    "hope": ["hope", "hopeful", "optimistic", "encouraged", "inspired", "motivated", "determined", "possibility"],
-    "shame": ["shame", "guilt", "embarrassed", "regret", "remorse", "humiliated", "ashamed"],
-    "pride": ["proud", "accomplished", "confident", "strong", "capable", "worthy", "empowered"],
-}
-
-DEFAULT_DECISION_PATTERNS = [
-    r"I decided",
-    r"I've decided",
-    r"I choose",
-    r"I chose",
-    r"I committed",
-    r"I commit to",
-    r"I'm going to",
-    r"I need to",
-    r"I realize I must",
-    r"the decision is",
-    r"my decision",
-    r"I'm choosing",
-    r"I made the choice",
-]
-
-DEFAULT_ARCHETYPE_PATTERNS: dict[str, list[str]] = {
-    "Warrior": ["fight", "battle", "strength", "courage", "warrior", "brave", "conquer", "overcome", "persist", "endure", "discipline", "resilience"],
-    "Sage": ["wisdom", "understand", "insight", "clarity", "truth", "knowledge", "learn", "discern", "contemplate", "reflect", "awareness"],
-    "Creator": ["create", "build", "make", "express", "art", "craft", "design", "imagine", "invent", "compose", "write", "creative"],
-    "Healer": ["heal", "restore", "recover", "mend", "nurture", "care", "soothe", "comfort", "therapy", "wholeness", "integration"],
-    "Explorer": ["explore", "discover", "adventure", "journey", "wander", "seek", "search", "venture", "curious", "new territory"],
-    "Lover": ["love", "connect", "intimate", "passion", "heart", "soul", "beloved", "embrace", "together", "union", "vulnerability"],
-    "Ruler": ["lead", "order", "control", "structure", "responsibility", "authority", "power", "manage", "organize", "sovereignty"],
-    "Magician": ["transform", "change", "shift", "evolve", "transmute", "alchemy", "metamorphosis", "breakthrough", "transcend"],
-}
-
-DEFAULT_STOP_CONCEPTS = {
-    "thing", "things", "way", "ways", "time", "times", "day", "days", "lot",
-    "lots", "bit", "part", "kind", "something", "everything", "nothing",
-    "anyone", "someone", "everybody", "today", "yesterday", "tomorrow",
-    "morning", "evening", "night", "week", "month", "year", "moment",
-    "sense", "stuff", "place", "point", "idea", "fact", "question",
-    "answer", "problem", "i", "me", "my", "mine", "myself",
-}
-
-DEFAULT_TRANSITION_PATTERNS = [
-    r"\b(?:move|moved|moving|shift|shifted|shifting|transition|transitioned|transitioning|turn|turned|turning)\s+from\s+(?P<source>[a-z][a-z\s'/-]{1,40}?)\s+(?:to|into|toward|towards)\s+(?P<target>[a-z][a-z\s'/-]{1,40}?)(?=[,.;!?\n]|$)",
-    r"\bfrom\s+(?P<source>[a-z][a-z\s'/-]{1,40}?)\s+to\s+(?P<target>[a-z][a-z\s'/-]{1,40}?)(?=[,.;!?\n]|$)",
-]
+# Import from shared lexicons (single source of truth)
+DEFAULT_EMOTION_LEXICON = _SHARED_EMOTION_LEXICON
+DEFAULT_DECISION_PATTERNS = _SHARED_DECISION_PATTERNS
+DEFAULT_ARCHETYPE_PATTERNS = _SHARED_ARCHETYPE_PATTERNS
+DEFAULT_STOP_CONCEPTS = _SHARED_STOP_CONCEPTS
+DEFAULT_TRANSITION_PATTERNS = _SHARED_TRANSITION_PATTERNS
 
 STYLE_CADENCE_WORDS = {
     "presence",

@@ -7,11 +7,14 @@ from dataclasses import dataclass, field
 from .entry_summary_provider import (
     ClaudeEntrySummaryProvider,
     EntrySummaryProvider,
+    HybridEntrySummaryProvider,
+    LocalEntrySummaryProvider,
     MockEntrySummaryProvider,
     OllamaEntrySummaryProvider,
 )
 from .state_label_provider import (
     ClaudeStateLabelProvider,
+    LocalStateLabelProvider,
     MockStateLabelProvider,
     OllamaStateLabelProvider,
     StateLabelProvider,
@@ -24,9 +27,9 @@ logger = logging.getLogger("analysis-service.provider-registry")
 class ProviderRegistry:
     summary_providers: dict[str, EntrySummaryProvider] = field(default_factory=dict)
     state_label_providers: dict[str, StateLabelProvider] = field(default_factory=dict)
-    default_summary: str = "mock"
-    default_state_label: str = "mock"
-    fallback: str = "mock"
+    default_summary: str = "local"
+    default_state_label: str = "local"
+    fallback: str = "local"
 
 
 _REGISTRY: ProviderRegistry | None = None
@@ -37,25 +40,32 @@ def get_provider_registry() -> ProviderRegistry:
     if _REGISTRY is not None:
         return _REGISTRY
 
-    summary_provider_name = os.environ.get("ENTRY_SUMMARY_PROVIDER", "mock").strip().lower()
-    state_label_provider_name = os.environ.get("STATE_LABEL_PROVIDER", "mock").strip().lower()
+    summary_provider_name = os.environ.get("ENTRY_SUMMARY_PROVIDER", "auto").strip().lower()
+    state_label_provider_name = os.environ.get("STATE_LABEL_PROVIDER", "auto").strip().lower()
     ollama_url = os.environ.get("OLLAMA_URL", "http://host.docker.internal:11434")
     ollama_model = os.environ.get("OLLAMA_MODEL", "llama3.2")
     anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
     anthropic_model = os.environ.get("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001").strip()
 
+    local_summary = LocalEntrySummaryProvider()
     summary_providers: dict[str, EntrySummaryProvider] = {
-        "mock": MockEntrySummaryProvider(),
+        "mock": local_summary,  # backward compat: "mock" now uses local extraction
+        "local": local_summary,
         "ollama": OllamaEntrySummaryProvider(ollama_url=ollama_url, model=ollama_model),
     }
 
+    local_state = LocalStateLabelProvider()
     state_label_providers: dict[str, StateLabelProvider] = {
-        "mock": MockStateLabelProvider(),
+        "mock": local_state,  # backward compat: "mock" now uses same local engine
+        "local": local_state,
         "ollama": OllamaStateLabelProvider(ollama_url=ollama_url, model=ollama_model),
     }
 
     if anthropic_api_key:
         summary_providers["anthropic"] = ClaudeEntrySummaryProvider(
+            api_key=anthropic_api_key, model=anthropic_model,
+        )
+        summary_providers["hybrid"] = HybridEntrySummaryProvider(
             api_key=anthropic_api_key, model=anthropic_model,
         )
         state_label_providers["anthropic"] = ClaudeStateLabelProvider(
@@ -83,7 +93,13 @@ def _resolve_default(
     label: str,
 ) -> str:
     if provider_name == "auto":
-        return "anthropic" if "anthropic" in providers else "ollama"
+        # Prefer hybrid (1 Claude call) over full anthropic (2 calls)
+        # Fall back to local (0 calls) when no API key
+        if "hybrid" in providers:
+            return "hybrid"
+        if "anthropic" in providers:
+            return "anthropic"
+        return "local" if "local" in providers else "ollama"
     if provider_name in providers:
         return provider_name
     logger.warning(
@@ -91,7 +107,7 @@ def _resolve_default(
         extra={
             "event": f"invalid_{label}_provider_config",
             "provider": provider_name,
-            "fallback": "mock",
+            "fallback": "local",
         },
     )
-    return "mock"
+    return "local"

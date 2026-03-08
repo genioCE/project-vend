@@ -79,6 +79,159 @@ class MockEntrySummaryProvider:
         )
 
 
+class LocalEntrySummaryProvider:
+    """Local-only provider using rule-based extraction. No API calls.
+
+    Uses hardened regex patterns from the gravity decomposer for entity detection,
+    shared keyword lexicons for emotions/decisions/archetypes, and frequency-based
+    theme extraction with emotion-proximity boosting.
+    """
+
+    model_version = "local-extractor-v1"
+    prompt_version = "entry-summary-local-v1"
+
+    def generate(
+        self,
+        entry_id: str,
+        entry_text: str,
+        chunks: list[EntryChunk],
+    ) -> EntrySummaryGeneration:
+        from .local_extractor import (
+            extract_decisions_local,
+            extract_entities_local,
+            extract_themes_local,
+        )
+
+        normalized = _normalize_whitespace(entry_text)
+        sentences = _split_sentences(normalized)
+
+        short_summary = _truncate_words(sentences[0] if sentences else normalized, 30)
+        detailed_summary = " ".join(sentences[:4]).strip() if sentences else _truncate_words(normalized, 120)
+
+        entities = extract_entities_local(entry_text)
+        themes = extract_themes_local(entry_text)
+        decisions = extract_decisions_local(entry_text)
+
+        return EntrySummaryGeneration(
+            short_summary=short_summary or "No summary available.",
+            detailed_summary=detailed_summary or short_summary or "No detailed summary available.",
+            themes=themes,
+            entities=entities,
+            decisions_actions=decisions,
+            model_version=self.model_version,
+            prompt_version=self.prompt_version,
+            provider="local",
+            mock=False,
+        )
+
+
+# ---------------------------------------------------------------------------
+# Hybrid provider — slim Claude prompt for summaries + themes only
+# ---------------------------------------------------------------------------
+
+_HYBRID_SYSTEM_PROMPT = (
+    "You analyze and summarize personal journal entries. Read carefully for both surface content and underlying emotional/psychological currents.\n\n"
+    "Return strict JSON with these keys:\n\n"
+    "- **short_summary**: 1-2 sentences capturing the emotional and thematic core. What is this entry *really about* beneath the surface events?\n\n"
+    "- **detailed_summary**: 3-5 sentences covering events, emotions, transitions, and decisions. Trace the arc of the entry — where did the writer start, what shifted, where did they land?\n\n"
+    "- **themes**: 3-8 abstract psychological or behavioral themes. Themes are patterns of meaning, NOT topic labels. "
+    "Keep each theme SHORT: 2-4 words only. Do NOT use 'through' as a connector. Do NOT pad with prepositional phrases.\n"
+    "  Good: 'reclaiming agency', 'solitude vs connection', 'creative mastery', 'processing grief', 'embodied presence'\n"
+    "  Bad (too vague): 'work', 'coding', 'feelings'\n"
+    "  Bad (too long): 'reclaiming agency through creative work', 'building confidence through technical problem-solving'\n\n"
+    "## Example\n\n"
+    "Entry: \"Spent the morning rebuilding the search pipeline. Frustrating at first — kept hitting dead ends. But once I switched approaches everything clicked. Called Mom after. She was proud. That meant a lot.\"\n\n"
+    "```json\n"
+    "{\n"
+    '  "short_summary": "A day of technical breakthrough followed by meaningful connection — the writer moved from frustration to mastery to vulnerability.",\n'
+    '  "detailed_summary": "The writer spent the morning debugging, hitting dead ends before finding a working approach. The afternoon brought real results. They called their mother and shared their work, finding emotional value in being seen.",\n'
+    '  "themes": ["technical confidence", "persistence and breakthrough", "seeking connection", "being witnessed"]\n'
+    "}\n"
+    "```\n\n"
+    "Do not return markdown. Return strict JSON only."
+)
+
+
+class HybridEntrySummaryProvider:
+    """Hybrid provider: local extraction for entities/decisions + ONE Claude call for summaries/themes.
+
+    Cuts API cost by ~71% compared to full Claude (eliminates entity/decision extraction
+    from Claude prompt AND eliminates the separate state label API call entirely).
+    """
+
+    prompt_version = "entry-summary-hybrid-v1"
+
+    def __init__(self, api_key: str, model: str = "claude-haiku-4-5-20251001", timeout_seconds: float = 120.0):
+        if anthropic is None:
+            raise ImportError("anthropic package is required for HybridEntrySummaryProvider")
+        self.client = anthropic.Anthropic(api_key=api_key, timeout=timeout_seconds)
+        self.model = model
+        self.timeout_seconds = timeout_seconds
+
+    def generate(
+        self,
+        entry_id: str,
+        entry_text: str,
+        chunks: list[EntryChunk],
+    ) -> EntrySummaryGeneration:
+        from .local_extractor import (
+            extract_decisions_local,
+            extract_entities_local,
+        )
+
+        # Local extraction (free, instant)
+        entities = extract_entities_local(entry_text)
+        decisions = extract_decisions_local(entry_text)
+
+        # ONE Claude call for summaries + themes only (slim prompt)
+        user_prompt = f"Entry ID: {entry_id}\nEntry text:\n{entry_text}\n"
+        parsed = self._call_claude(_HYBRID_SYSTEM_PROMPT, user_prompt)
+
+        short_summary = _normalize_whitespace(str(
+            parsed.get("short_summary", "")
+            or parsed.get("summary", "")
+        ))
+        detailed_summary = _normalize_whitespace(str(
+            parsed.get("detailed_summary", "")
+            or parsed.get("detail_summary", "")
+        ))
+        themes = _sanitize_list(parsed.get("themes", []), max_items=10)
+        themes = [t[0].lower() + t[1:] if t else t for t in themes]
+        themes = _dedupe_themes_by_overlap(themes)
+
+        if not short_summary:
+            short_summary = _truncate_words(entry_text, 30)
+        if not detailed_summary:
+            detailed_summary = _truncate_words(entry_text, 140)
+
+        return EntrySummaryGeneration(
+            short_summary=short_summary,
+            detailed_summary=detailed_summary,
+            themes=themes,
+            entities=entities,
+            decisions_actions=decisions,
+            model_version=self.model,
+            prompt_version=self.prompt_version,
+            provider="hybrid",
+            mock=False,
+        )
+
+    def _call_claude(self, system_prompt: str, user_prompt: str) -> dict:
+        """Make a single Claude API call and return parsed JSON."""
+        response = self.client.messages.create(
+            model=self.model,
+            max_tokens=2048,
+            temperature=0.2,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_prompt}],
+        )
+        content = response.content[0].text.strip()
+        if content.startswith("```"):
+            content = re.sub(r"^```(?:json)?\s*", "", content)
+            content = re.sub(r"\s*```$", "", content)
+        return json.loads(content)
+
+
 # ---------------------------------------------------------------------------
 # Ollama prompts
 # ---------------------------------------------------------------------------
