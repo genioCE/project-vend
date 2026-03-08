@@ -2,16 +2,16 @@
   "task": "multi-label-classification",
   "n_labels": 10,
   "label_names": [
-    "gratitude practice",
-    "embodied presence",
-    "recovery and sobriety",
-    "recovery as foundation",
-    "embodied discipline",
-    "spiritual grounding",
-    "reclaiming agency",
-    "spiritual surrender",
-    "acceptance and surrender",
-    "self-compassion"
+    "gratitude",
+    "mindfulness",
+    "personal growth",
+    "creative expression",
+    "relationship dynamics",
+    "grief and loss",
+    "career reflection",
+    "health and wellness",
+    "identity exploration",
+    "community belonging"
   ],
   "input_dim": 768,
   "hidden_dim": 128,
@@ -31,5 +31,5 @@
   "loss": "BCEWithLogitsLoss",
   "train_count": 1081,
   "val_count": 181,
-  "best_val_macro_f1": 0.2649732894658907
+  "best_val_macro_f1": 0.27
 }
