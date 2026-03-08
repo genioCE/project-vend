@@ -227,10 +227,12 @@ The `analysis-service` provides per-entry analysis with a tiered provider system
 | Provider | Summary | State Labels | Cost | Quality |
 |----------|---------|-------------|------|---------|
 | `anthropic` | Claude API | Claude API | ~$10/corpus | Gold standard |
-| `hybrid` | Claude API | Local rules | ~$3/corpus | Best value |
-| `finetuned` | (uses default) | Neural model | $0 | 90% match to Claude |
-| `local` | Rule-based extraction | Rule-based engine | $0 | Baseline |
+| `hybrid` | Claude API | Finetuned neural | ~$3/corpus | Best value |
+| `finetuned` | (uses default) | Finetuned neural | $0 | 90% match to Claude |
+| `local` | Rule-based extraction | Finetuned neural* | $0 | Baseline summaries, good state |
 | `ollama` | Ollama LLM | Ollama LLM | $0 (local GPU) | Good |
+
+*Falls back to rule-based engine when finetuned model weights are not available.
 
 The **finetuned** state classifier is a sentence-transformer (all-mpnet-base-v2) fine-tuned on Claude-labeled data with a regression head, producing 8-dimension psychological state scores at ~100ms per entry on CPU. Trained with 5-fold cross-validation on ~1,400 entries; achieves MAE=0.169 and Pearson r=0.662 vs Claude on held-out test data.
 

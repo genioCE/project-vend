@@ -65,10 +65,13 @@ class EntrySummaryService:
         )
 
         if self.state_label_service is not None:
-            # Hybrid/local providers use rule-based state labels (no API call)
+            # Hybrid/local providers use finetuned model when available, else local rules
             sl_provider = request.provider
             if sl_provider in ("hybrid", "local"):
-                sl_provider = "local"
+                if "finetuned" in self.state_label_service.providers:
+                    sl_provider = "finetuned"
+                else:
+                    sl_provider = "local"
             sl_request = StateLabelGenerateRequest(
                 entry_id=request.entry_id,
                 entry_date=request.entry_date,
