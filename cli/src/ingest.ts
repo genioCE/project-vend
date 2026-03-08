@@ -28,7 +28,7 @@ function formatBytes(bytes: number): string {
 }
 
 async function main() {
-  printBanner();
+  await printBanner();
 
   const projectRoot = getProjectRoot();
   const env = parseEnvFile(getEnvPath());
@@ -137,7 +137,7 @@ async function main() {
       {
         padding: 1,
         borderStyle: "round",
-        borderColor: failed > 0 ? "#f87171" : "#7c6aff",
+        borderColor: failed > 0 ? "#808080" : "#585858",
       },
     ),
   );

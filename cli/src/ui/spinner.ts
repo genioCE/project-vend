@@ -1,7 +1,7 @@
 import ora, { type Ora } from "ora";
 
 export function createSpinner(text: string): Ora {
-  return ora({ text, color: "magenta", spinner: "dots" });
+  return ora({ text, color: "gray", spinner: "dots" });
 }
 
 export async function withSpinner<T>(

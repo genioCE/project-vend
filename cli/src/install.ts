@@ -14,7 +14,7 @@ import { config } from "./config/store.js";
 import boxen from "boxen";
 
 async function main() {
-  printBanner();
+  await printBanner();
 
   const projectRoot = getProjectRoot();
 
@@ -66,7 +66,7 @@ async function main() {
     {
       padding: 1,
       borderStyle: "round",
-      borderColor: "#7c6aff",
+      borderColor: "#585858",
     },
   );
   console.log();
