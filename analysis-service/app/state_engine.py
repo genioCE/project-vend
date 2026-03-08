@@ -25,8 +25,28 @@ from .models import (
 )
 
 STATE_SCHEMA_VERSION = "state-profile-v1"
-STATE_PROMPT_VERSION = "state-engine-local-v1"
-STATE_MODEL_VERSION = "deterministic-ruleset-v1"
+STATE_PROMPT_VERSION = "state-engine-local-v2"
+STATE_MODEL_VERSION = "deterministic-ruleset-v2"
+
+# ─── Scoring constants ──────────────────────────────────────────────────────
+# Bayesian smoothing: score = (high - low) / (total + K)
+# K=3 dampens extreme scores while staying sensitive:
+#   1 hit  → ±0.25 (at threshold — registers as directional)
+#   2 hits → ±0.40 (clear signal)
+#   5 hits → ±0.63
+#  10 hits → ±0.77
+#  20 hits → ±0.87
+SCORE_SMOOTHING_K = 3
+SCORE_CAP = 0.95  # never output ±1.0
+
+# ─── Negation detection ──────────────────────────────────────────────────────
+_NEGATION_WORDS: set[str] = {
+    "not", "no", "don't", "doesn't", "didn't", "won't", "wouldn't",
+    "can't", "cannot", "couldn't", "shouldn't", "isn't", "aren't",
+    "wasn't", "weren't", "never", "neither", "nor", "hardly", "barely",
+    "don't", "doesn't", "didn't",  # unicode curly apostrophes
+}
+_NEGATION_WINDOW = 3  # words before match to check
 
 SignalCategory = Literal[
     "lexical",
@@ -119,9 +139,9 @@ STATE_DIMENSION_SPECS: tuple[DimensionSpec, ...] = (
         high_anchor="activated",
         low_rules=(
             SignalRule("calm", "lexical"),
-            SignalRule("still", "lexical"),
+            SignalRule("still", "lexical"),  # borderline but smoothing handles over-counting
             SignalRule("slow", "lexical"),
-            SignalRule("rest", "lexical"),
+            # "rest" removed — "the rest of" is NOT calm
             SignalRule("steady", "lexical"),
             SignalRule("quiet", "lexical"),
             SignalRule("settled", "lexical"),
@@ -131,6 +151,7 @@ STATE_DIMENSION_SPECS: tuple[DimensionSpec, ...] = (
             SignalRule("grounded", "lexical"),
             SignalRule("eased", "lexical"),
             SignalRule("unwinding", "lexical"),
+            SignalRule("resting", "lexical"),
             SignalRule("slowed down", "pattern"),
             SignalRule("taking it easy", "pattern"),
             SignalRule("nothing much", "pattern"),
@@ -146,10 +167,12 @@ STATE_DIMENSION_SPECS: tuple[DimensionSpec, ...] = (
             SignalRule("driven", "lexical"),
             SignalRule("restless", "lexical"),
             SignalRule("pushing", "lexical"),
-            SignalRule("moving", "lexical"),
+            SignalRule("moving", "lexical"),  # borderline but more often activated than not
             SignalRule("cranking", "lexical"),
             SignalRule("productive", "lexical"),
             SignalRule("busy", "lexical"),
+            SignalRule("energized", "lexical"),
+            SignalRule("nonstop", "lexical"),
             SignalRule("fired up", "pattern"),
             SignalRule("on a roll", "pattern"),
             SignalRule("deep into", "pattern"),
@@ -189,27 +212,30 @@ STATE_DIMENSION_SPECS: tuple[DimensionSpec, ...] = (
             SignalRule("choose", "modal"),
             SignalRule("decide", "modal"),
             SignalRule("build", "modal"),
-            SignalRule("can", "modal"),
-            SignalRule("action", "pattern"),
+            # "can" removed — too generic (7758 matches, fires on "I can see", "you can tell")
             SignalRule("built", "modal"),
             SignalRule("created", "modal"),
-            SignalRule("made", "modal"),
+            # "made" removed — too generic ("made dinner", "made a mess")
             SignalRule("shipped", "modal"),
             SignalRule("solved", "modal"),
             SignalRule("launched", "modal"),
             SignalRule("implemented", "modal"),
             SignalRule("designed", "modal"),
-            SignalRule("wrote", "modal"),
             SignalRule("finished", "modal"),
             SignalRule("accomplished", "lexical"),
             SignalRule("capable", "lexical"),
+            SignalRule("took action", "pattern"),
             SignalRule("figured out", "pattern"),
             SignalRule("got it working", "pattern"),
             SignalRule("working on", "pattern"),
             SignalRule("making progress", "pattern"),
             SignalRule("took the step", "pattern"),
             SignalRule("pulled it off", "pattern"),
-            SignalRule("i did", "pattern"),
+            SignalRule("i did it", "pattern"),
+            SignalRule("i made it", "pattern"),
+            SignalRule("made it happen", "pattern"),
+            SignalRule("took control", "pattern"),
+            SignalRule("stepped up", "pattern"),
         ),
     ),
     DimensionSpec(
@@ -243,12 +269,12 @@ STATE_DIMENSION_SPECS: tuple[DimensionSpec, ...] = (
             SignalRule("committed", "lexical"),
             SignalRule("decided", "modal"),
             SignalRule("aligned", "structural"),
-            SignalRule("sure", "lexical"),
+            SignalRule("sure", "lexical"),  # borderline; smoothing handles
             SignalRule("confident", "lexical"),
             SignalRule("obvious", "lexical"),
             SignalRule("settled", "lexical"),
             SignalRule("convinced", "lexical"),
-            SignalRule("know what", "pattern"),
+            SignalRule("know what", "pattern"),  # borderline; smoothing handles
             SignalRule("figured out", "pattern"),
             SignalRule("landed on", "pattern"),
             SignalRule("no question", "pattern"),
@@ -280,9 +306,9 @@ STATE_DIMENSION_SPECS: tuple[DimensionSpec, ...] = (
             SignalRule("pushed away", "pattern"),
         ),
         high_rules=(
-            SignalRule("open", "relational"),
+            SignalRule("open", "relational"),  # borderline; smoothing prevents extreme
             SignalRule("vulnerable", "relational"),
-            SignalRule("honest", "relational"),
+            SignalRule("honest", "relational"),  # borderline; smoothing prevents extreme
             SignalRule("shared", "relational"),
             SignalRule("connected", "relational"),
             SignalRule("told", "relational"),
@@ -297,6 +323,8 @@ STATE_DIMENSION_SPECS: tuple[DimensionSpec, ...] = (
             SignalRule("real conversation", "pattern"),
             SignalRule("felt seen", "pattern"),
             SignalRule("felt heard", "pattern"),
+            SignalRule("deep conversation", "pattern"),
+            SignalRule("heart to heart", "pattern"),
         ),
     ),
     DimensionSpec(
@@ -329,17 +357,19 @@ STATE_DIMENSION_SPECS: tuple[DimensionSpec, ...] = (
             SignalRule("self belief", "pattern"),
             SignalRule("i trust", "pattern"),
             SignalRule("capable", "lexical"),
-            SignalRule("solid", "lexical"),
-            SignalRule("strong", "lexical"),
+            SignalRule("solid", "lexical"),  # borderline; smoothing handles
+            SignalRule("strong", "lexical"),  # borderline; smoothing handles
             SignalRule("competent", "lexical"),
             SignalRule("worthy", "lexical"),
             SignalRule("proud of myself", "pattern"),
-            SignalRule("i can", "pattern"),
+            # "i can" removed — 3660 matches, too generic ("I can see", "I can tell")
             SignalRule("figured it out", "pattern"),
             SignalRule("trust myself", "pattern"),
-            SignalRule("i know what", "pattern"),
+            SignalRule("i know what i", "pattern"),
             SignalRule("i've got this", "pattern"),
             SignalRule("believe in myself", "pattern"),
+            SignalRule("i can do this", "pattern"),
+            SignalRule("i can handle", "pattern"),
         ),
     ),
     DimensionSpec(
@@ -347,11 +377,11 @@ STATE_DIMENSION_SPECS: tuple[DimensionSpec, ...] = (
         low_anchor="past_looping",
         high_anchor="future_building",
         low_rules=(
-            SignalRule("again", "temporal"),
+            SignalRule("again", "temporal"),  # borderline; smoothing handles
             SignalRule("replay", "temporal"),
             SignalRule("regret", "temporal"),
             SignalRule("should have", "temporal"),
-            SignalRule("yesterday", "temporal"),
+            # "yesterday" removed — neutral time marker, not past_looping
             SignalRule("used to", "temporal"),
             SignalRule("back then", "temporal"),
             SignalRule("haunted", "temporal"),
@@ -412,11 +442,11 @@ STATE_DIMENSION_SPECS: tuple[DimensionSpec, ...] = (
         high_rules=(
             SignalRule("coherent", "structural"),
             SignalRule("integrated", "structural"),
-            SignalRule("whole", "structural"),
+            SignalRule("whole", "structural"),  # borderline; smoothing handles
             SignalRule("consistent", "structural"),
             SignalRule("centered", "structural"),
             SignalRule("aligned", "structural"),
-            SignalRule("flow", "structural"),
+            SignalRule("flow", "structural"),  # borderline; smoothing handles
             SignalRule("harmony", "structural"),
             SignalRule("unified", "structural"),
             SignalRule("balanced", "structural"),
@@ -502,7 +532,9 @@ class DeterministicStateLabeler:
             low_hits = acc.low_hits
             high_hits = acc.high_hits
             total_hits = low_hits + high_hits
-            score = round((high_hits - low_hits) / max(total_hits, 1), 4)
+            # Bayesian smoothing: prevents ±1.0 from a single signal hit
+            raw_score = (high_hits - low_hits) / (total_hits + SCORE_SMOOTHING_K)
+            score = round(max(-SCORE_CAP, min(SCORE_CAP, raw_score)), 4)
 
             if score <= -0.25:
                 label = spec.low_anchor
@@ -604,6 +636,11 @@ class DeterministicStateLabeler:
                 dedupe_key = (spec.dimension, rule.phrase, start, end)
                 if dedupe_key in signal_keys_seen:
                     continue
+
+                # Negation check: skip signal if preceded by negation word
+                if _is_negated(text, start):
+                    continue
+
                 signal_keys_seen.add(dedupe_key)
 
                 span = SourceSpan(
@@ -700,6 +737,23 @@ def _signal_weight(category: SignalCategory) -> float:
     if category == "pattern":
         return 0.74
     return 0.7
+
+
+def _is_negated(text: str, match_start: int) -> bool:
+    """Check if a signal match is preceded by a negation word within a small window.
+
+    Prevents "I can't do this" from matching "can" as high-agency, or
+    "not happy" from matching "happy" as high-valence.
+    """
+    prefix = text[max(0, match_start - 50):match_start]
+    words = prefix.split()
+    check_words = words[-_NEGATION_WINDOW:] if len(words) >= _NEGATION_WINDOW else words
+    for w in check_words:
+        # Normalize curly/straight apostrophes and strip punctuation
+        normalized = w.replace("\u2019", "'").replace("\u2018", "'").lower().strip(".,;:!?\"()")
+        if normalized in _NEGATION_WORDS:
+            return True
+    return False
 
 
 def _normalize_whitespace(value: str) -> str:
