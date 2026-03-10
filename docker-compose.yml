@@ -97,6 +97,8 @@ services:
       - STATE_LABEL_PROVIDER=${STATE_LABEL_PROVIDER:-auto}
       - FINETUNED_MODEL_DIR=${FINETUNED_MODEL_DIR:-}
       - FINETUNED_THEME_MODEL_DIR=${FINETUNED_THEME_MODEL_DIR:-}
+      - FINETUNED_ENTITY_MODEL_DIR=${FINETUNED_ENTITY_MODEL_DIR:-}
+      - FINETUNED_DECISION_MODEL_DIR=${FINETUNED_DECISION_MODEL_DIR:-}
       - OLLAMA_URL=${OLLAMA_URL:-http://host.docker.internal:11434}
       - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.1:8b}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
@@ -231,6 +233,8 @@ services:
       - STATE_LABEL_PROVIDER=${STATE_LABEL_PROVIDER:-auto}
       - FINETUNED_MODEL_DIR=${FINETUNED_MODEL_DIR:-}
       - FINETUNED_THEME_MODEL_DIR=${FINETUNED_THEME_MODEL_DIR:-}
+      - FINETUNED_ENTITY_MODEL_DIR=${FINETUNED_ENTITY_MODEL_DIR:-}
+      - FINETUNED_DECISION_MODEL_DIR=${FINETUNED_DECISION_MODEL_DIR:-}
       - OLLAMA_URL=${OLLAMA_URL:-http://host.docker.internal:11434}
       - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.1:8b}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
@@ -251,3 +255,13 @@ services:
       - ANALYSIS_SQLITE_PATH=/analysis-data/analysis.sqlite
       - CORPUS_PATH=/corpus
     profiles: ["backfill-timeseries"]
+
+  backfill-weather:
+    build: ./mcp-server
+    entrypoint: ["node", "dist/backfill-weather.js"]
+    command: []
+    volumes:
+      - timeseries-data:/app/data
+    environment:
+      - DUCKDB_PATH=/app/data/timeseries.duckdb
+    profiles: ["backfill-weather"]

@@ -42,19 +42,22 @@ dist/
 *.bin
 *.onnx
 training_data.jsonl
-# Theme training artifacts (loose files in scripts/)
+# Training artifacts (loose files in scripts/ — contain corpus-derived data)
+/analysis-service/scripts/*_training_data*.jsonl
+/analysis-service/scripts/*_labels_*.jsonl
+/analysis-service/scripts/*_splits*.json
 /analysis-service/scripts/theme_training_data.jsonl
 /analysis-service/scripts/theme_splits.json
 /analysis-service/scripts/theme_clusters.json
 /analysis-service/scripts/theme_label_index.json
 /analysis-service/scripts/theme_thresholds.json
+/analysis-service/scripts/entity_type_index.json
 
-# Personal model config data — contains corpus-derived labels
-# Copy the .example.json files and fill in your own
-**/theme-classifier-*/theme_clusters.json
-**/theme-classifier-*/theme_label_index.json
-**/theme-classifier-*/theme_thresholds.json
-**/theme-classifier-*/training_config.json
+# Finetuned model directories — encoder weights too large for git
+# Config/eval JSONs inside are also corpus-derived
+**/decision-classifier-*/
+**/entity-classifier-*/
+**/theme-classifier-*/
 !*.example.json
 
 # Python

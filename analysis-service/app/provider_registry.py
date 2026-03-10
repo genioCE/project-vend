@@ -52,6 +52,39 @@ def get_provider_registry() -> ProviderRegistry:
     anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
     anthropic_model = os.environ.get("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001").strip()
 
+    # Register finetuned entity/decision providers when model directories are available
+    finetuned_entity_model_dir = os.environ.get("FINETUNED_ENTITY_MODEL_DIR", "").strip()
+    entity_provider = None
+    if finetuned_entity_model_dir and Path(finetuned_entity_model_dir).exists():
+        try:
+            from .finetuned_entity_provider import FinetunedEntityProvider
+
+            entity_provider = FinetunedEntityProvider(model_dir=finetuned_entity_model_dir)
+            logger.info(
+                "finetuned_entity_provider_registered",
+                extra={"model_dir": finetuned_entity_model_dir},
+            )
+        except Exception as e:
+            logger.warning(f"finetuned_entity_provider_failed: {e}")
+    elif finetuned_entity_model_dir:
+        logger.warning(f"finetuned_entity_provider_skipped: model dir not found at {finetuned_entity_model_dir}")
+
+    finetuned_decision_model_dir = os.environ.get("FINETUNED_DECISION_MODEL_DIR", "").strip()
+    decision_provider = None
+    if finetuned_decision_model_dir and Path(finetuned_decision_model_dir).exists():
+        try:
+            from .finetuned_decision_provider import FinetunedDecisionProvider
+
+            decision_provider = FinetunedDecisionProvider(model_dir=finetuned_decision_model_dir)
+            logger.info(
+                "finetuned_decision_provider_registered",
+                extra={"model_dir": finetuned_decision_model_dir},
+            )
+        except Exception as e:
+            logger.warning(f"finetuned_decision_provider_failed: {e}")
+    elif finetuned_decision_model_dir:
+        logger.warning(f"finetuned_decision_provider_skipped: model dir not found at {finetuned_decision_model_dir}")
+
     # Register finetuned theme provider when model directory is available
     finetuned_theme_model_dir = os.environ.get("FINETUNED_THEME_MODEL_DIR", "").strip()
     theme_provider = None
@@ -69,7 +102,11 @@ def get_provider_registry() -> ProviderRegistry:
     elif finetuned_theme_model_dir:
         logger.warning(f"finetuned_theme_provider_skipped: model dir not found at {finetuned_theme_model_dir}")
 
-    local_summary = LocalEntrySummaryProvider(theme_provider=theme_provider)
+    local_summary = LocalEntrySummaryProvider(
+        theme_provider=theme_provider,
+        entity_provider=entity_provider,
+        decision_provider=decision_provider,
+    )
     summary_providers: dict[str, EntrySummaryProvider] = {
         "mock": local_summary,  # backward compat: "mock" now uses local extraction
         "local": local_summary,

@@ -93,10 +93,12 @@ class LocalEntrySummaryProvider:
     model_version = "local-extractor-v1"
     prompt_version = "entry-summary-local-v1"
 
-    def __init__(self, theme_provider=None):
+    def __init__(self, theme_provider=None, entity_provider=None, decision_provider=None):
         self._theme_provider = theme_provider
-        if theme_provider is not None:
-            self.prompt_version = "entry-summary-local-finetuned-themes-v1"
+        self._entity_provider = entity_provider
+        self._decision_provider = decision_provider
+        if theme_provider is not None or entity_provider is not None or decision_provider is not None:
+            self.prompt_version = "entry-summary-local-finetuned-v1"
 
     def generate(
         self,
@@ -116,8 +118,23 @@ class LocalEntrySummaryProvider:
         short_summary = _truncate_words(sentences[0] if sentences else normalized, 30)
         detailed_summary = " ".join(sentences[:4]).strip() if sentences else _truncate_words(normalized, 120)
 
+        # Entity extraction: regex spans + optional finetuned type classification
         entities = extract_entities_local(entry_text)
-        decisions = extract_decisions_local(entry_text)
+        if self._entity_provider is not None:
+            try:
+                entities = self._entity_provider.classify_entities(entry_text, candidates=entities)
+            except Exception:
+                logger.warning("finetuned_entity_fallback", exc_info=True)
+
+        # Decision extraction: finetuned sentence classifier or regex fallback
+        if self._decision_provider is not None:
+            try:
+                decisions = self._decision_provider.extract_decisions(entry_text)
+            except Exception:
+                logger.warning("finetuned_decision_fallback", exc_info=True)
+                decisions = extract_decisions_local(entry_text)
+        else:
+            decisions = extract_decisions_local(entry_text)
 
         # Use finetuned theme classifier when available, else rule-based
         if self._theme_provider is not None:
