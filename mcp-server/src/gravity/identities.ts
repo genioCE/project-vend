@@ -76,17 +76,20 @@ export const TOOLS: ToolIdentity[] = [
       "Track how a topic or theme evolves over time across the writing. " +
       "Chronological passages showing how thinking about a subject has changed " +
       "and grown. Use for questions about personal growth, recurring concerns, " +
-      "or evolving perspectives on a concept over time.",
+      "evolving perspectives, what something means to me, or how understanding " +
+      "of a concept has deepened. Answers 'what does X mean to me' by showing " +
+      "the pattern of engagement over time.",
     is_meta: false,
     always_active: false,
   },
   {
     name: "trace_concept_evolution",
     description:
-      "Timeline of when and how a concept appears across the corpus. Concept " +
-      "emergence, frequency, and contextual shifts over time. Shows which entries " +
-      "contain the concept, what emotions and people co-occur with it. Use for " +
-      "tracing an idea's journey through the writing.",
+      "Timeline of when and how a concept or person appears across the corpus. " +
+      "Traces emergence, frequency, and contextual shifts over time. Use for: " +
+      "how does X show up in my writing, how has my relationship with X changed, " +
+      "how has X evolved, what does X mean to me over time, how X manifests or " +
+      "appears across entries. Maps the journey of any idea or person through the writing.",
     is_meta: false,
     always_active: false,
   },
@@ -106,7 +109,8 @@ export const TOOLS: ToolIdentity[] = [
       "Find psychological and narrative theme patterns and their co-occurrences. " +
       "Themes are 2-4 word patterns like 'cultivating resilience', 'seeking clarity', " +
       "'struggling with discipline'. Returns entries linked to a theme and which " +
-      "other themes appear alongside it.",
+      "other themes appear alongside it. Also covers shadow work, archetypal themes, " +
+      "psychological patterns, and what themes accompany a feeling or archetype.",
     is_meta: false,
     always_active: false,
   },
@@ -209,7 +213,8 @@ export const TOOLS: ToolIdentity[] = [
     description:
       "Corpus-level overview: total word count, date range, number of entries, " +
       "average length, entries per year. Use for meta-questions about the writing " +
-      "practice itself — how much has been written, how consistent the habit is.",
+      "practice itself — how much have I written, how many entries, how many words, " +
+      "writing volume, word count totals, how consistent the habit is, practice statistics.",
     is_meta: true,
     always_active: false,
   },

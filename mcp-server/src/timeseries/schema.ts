@@ -45,4 +45,31 @@ export async function ensureSchema(): Promise<void> {
   } catch {
     // Column already exists — ignore
   }
+
+  // Migration: add weather columns
+  const weatherColumns = [
+    "weather_temp_max DOUBLE",
+    "weather_temp_min DOUBLE",
+    "weather_temp_mean DOUBLE",
+    "weather_temp_feels_max DOUBLE",
+    "weather_temp_feels_min DOUBLE",
+    "weather_precip_mm DOUBLE",
+    "weather_rain_mm DOUBLE",
+    "weather_snow_cm DOUBLE",
+    "weather_code INTEGER",
+    "weather_condition TEXT",
+    "weather_cloud_cover DOUBLE",
+    "weather_wind_max DOUBLE",
+    "weather_sunrise TEXT",
+    "weather_sunset TEXT",
+    "weather_daylight_hours DOUBLE",
+  ];
+
+  for (const col of weatherColumns) {
+    try {
+      await exec(`ALTER TABLE entries ADD COLUMN ${col}`);
+    } catch {
+      // Column already exists — ignore
+    }
+  }
 }

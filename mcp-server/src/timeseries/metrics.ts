@@ -11,6 +11,42 @@ export interface ResolvedMetric {
 
 const VALID_OPERATORS = new Set([">", ">=", "<", "<=", "=", "!="]);
 
+// Weather metric aliases → column names
+const WEATHER_METRICS: Record<string, string> = {
+  // Temperature
+  temperature: "weather_temp_mean",
+  temp: "weather_temp_mean",
+  temperature_max: "weather_temp_max",
+  temp_max: "weather_temp_max",
+  high_temp: "weather_temp_max",
+  temperature_min: "weather_temp_min",
+  temp_min: "weather_temp_min",
+  low_temp: "weather_temp_min",
+  feels_like: "weather_temp_feels_max",
+  apparent_temp: "weather_temp_feels_max",
+
+  // Precipitation
+  precipitation: "weather_precip_mm",
+  precip: "weather_precip_mm",
+  rain: "weather_rain_mm",
+  snow: "weather_snow_cm",
+  snowfall: "weather_snow_cm",
+
+  // Sky/conditions
+  cloud_cover: "weather_cloud_cover",
+  clouds: "weather_cloud_cover",
+  cloudiness: "weather_cloud_cover",
+
+  // Wind
+  wind: "weather_wind_max",
+  wind_speed: "weather_wind_max",
+
+  // Daylight
+  daylight: "weather_daylight_hours",
+  daylight_hours: "weather_daylight_hours",
+  sunlight: "weather_daylight_hours",
+};
+
 export function resolveMetric(name: string): ResolvedMetric | null {
   // Normalize for dimension matching: hyphens → underscores, lowercase, trim
   const normalized = name.toLowerCase().trim().replace(/-/g, "_");
@@ -20,6 +56,15 @@ export function resolveMetric(name: string): ResolvedMetric | null {
   }
   if (normalized === "word_count") {
     return { kind: "column", column: "word_count" };
+  }
+
+  // Check weather metrics
+  if (WEATHER_METRICS[normalized]) {
+    return { kind: "column", column: WEATHER_METRICS[normalized] };
+  }
+  // Also allow direct column names (weather_temp_max, etc.)
+  if (normalized.startsWith("weather_")) {
+    return { kind: "column", column: normalized };
   }
 
   // For prefixed values (archetype:X, theme:X, concept:X), preserve original case

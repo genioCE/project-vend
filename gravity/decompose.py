@@ -31,7 +31,7 @@ Given a natural language query, decompose it into typed semantic fragments. Each
 - **entity**: Named people, places, practices, organizations (e.g., Kyle, Blocworks, climbing, StarSpace46, Mom)
 - **temporal**: Time dimensions, change markers, period references (e.g., change over time, since January, last 3 months, recently, since I started climbing)
 - **emotional**: Feelings, states, psychological dimensions (e.g., self-trust, integration, agency, valence, stuck, empowered, fragmented)
-- **relational**: Connection structure, influence, tension (e.g., relationship with, tension between, influence of, how X connects to Y)
+- **relational**: Connection structure, influence, tension, comparison. Key markers: 'relationship with', 'tension between', 'how X affects Y', 'what connects', 'compared to', 'show up in', 'mean to me', 'comes with'. If a query asks HOW two things relate or what accompanies something, that's relational.
 - **archetypal**: Patterns, roles, mythic structures (e.g., Creator, Healer, Warrior, Sovereign, Integrator)
 
 ## Rules

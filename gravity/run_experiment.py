@@ -431,8 +431,8 @@ def main():
         test = TEST_QUERIES[idx]
         result = run_single_query(
             test.query, identity_vectors, embedding_model, test=test,
-            composite_threshold=args.threshold,
-            primary_floor=args.floor,
+            min_tools=args.min_tools,
+            max_tools=args.max_tools,
         )
         results.append(result)
 

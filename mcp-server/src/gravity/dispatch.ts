@@ -346,6 +346,13 @@ const DISPATCH_TABLE: Record<string, DispatchFn> = {
           "relational_openness", "self_trust", "time_orientation", "integration",
         ],
         entry_stats: ["word_count"],
+        weather: [
+          "temperature (or temp, temp_max, temp_min, feels_like)",
+          "precipitation (or precip, rain, snow)",
+          "cloud_cover (or clouds, cloudiness)",
+          "wind (or wind_speed)",
+          "daylight_hours (or daylight, sunlight)",
+        ],
         archetypes: archetypes.map((r) => `archetype:${r.archetype}`),
         top_themes: themes.map((r) => `theme:${r.concept}`),
       },

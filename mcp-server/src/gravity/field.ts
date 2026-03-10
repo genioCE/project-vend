@@ -14,10 +14,24 @@ import type {
   ToolReliability,
 } from "./types.js";
 import { TOOL_NAMES, ALWAYS_ACTIVE_TOOLS, META_TOOLS } from "./identities.js";
-import { getReliabilityMap } from "./ledger.js";
+import { getReliabilityMap, getOutcomeCount } from "./ledger.js";
 
 const MIN_TOOLS = 3;
 const MAX_TOOLS = 10;
+
+/**
+ * Compute adaptive reliability floor based on ledger size.
+ *
+ * With sparse data, we use a high floor (0.65) to avoid over-penalizing
+ * tools we don't have enough signal on. As data accumulates, we lower
+ * the floor to let the reliability signal dominate.
+ */
+function getAdaptiveFloor(): number {
+  const outcomeCount = getOutcomeCount();
+  if (outcomeCount < 50) return 0.65;
+  if (outcomeCount < 100) return 0.55;
+  return 0.50;
+}
 
 /** Dot product of two vectors (cosine similarity when L2-normalized). */
 export function dotProduct(a: number[], b: number[]): number {
@@ -152,7 +166,7 @@ export function applyReliabilityBias(
   options?: { minActivations?: number; floor?: number }
 ): number[] {
   const minActivations = options?.minActivations ?? 10;
-  const floor = options?.floor ?? 0.3;
+  const floor = options?.floor ?? getAdaptiveFloor();
 
   // Extract fragment types present in this query
   const fragmentTypes = new Set(fragments.map((f) => f.type));
@@ -278,20 +292,40 @@ export function computeGravityField(
     }
   }
 
-  // Meta-tools: only activate if in top 3 of ALL tool scores
+  // Meta-tools: activate if in top 5 of ALL tool scores
   const sortedAllScores = allTools
     .map((t) => t.composite_score)
     .sort((a, b) => b - a);
-  const top3Threshold = sortedAllScores[2] ?? 0;
+  const top5Threshold = sortedAllScores[4] ?? 0;
   for (const tool of allTools) {
-    if (tool.is_meta && tool.composite_score >= top3Threshold) {
+    if (tool.is_meta && tool.composite_score >= top5Threshold) {
       activated.push(tool);
+    }
+  }
+
+  // Track activated names for deduplication
+  const activatedNames = new Set(activated.map((t) => t.name));
+
+  // Meta-tool keyword bypass: explicit meta-queries should always fire the right tool
+  const queryLower = decomposition.extracted.search_query.toLowerCase();
+  const metaKeywordMap: Record<string, string[]> = {
+    get_writing_stats: ["how much have i written", "how many entries", "how many words", "writing stats", "total words", "word count total"],
+    list_available_metrics: ["what metrics", "which metrics", "available metrics", "what can i track", "what can i measure"],
+  };
+  for (const [toolName, keywords] of Object.entries(metaKeywordMap)) {
+    if (keywords.some((kw) => queryLower.includes(kw))) {
+      if (!activatedNames.has(toolName)) {
+        const tool = allTools.find((t) => t.name === toolName);
+        if (tool) {
+          activated.push(tool);
+          activatedNames.add(toolName);
+        }
+      }
     }
   }
 
   // Semantic boost: when extracted params signal specific needs, ensure
   // the most relevant tools are included even if below adaptive cutoff
-  const activatedNames = new Set(activated.map((t) => t.name));
   const metricsExtracted = decomposition.extracted.metrics.length > 0;
 
   if (metricsExtracted) {
