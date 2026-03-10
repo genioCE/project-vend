@@ -24,6 +24,16 @@ from .graph import (
     get_entries_by_state,
     get_organization_network,
 )
+from .graph_consistency import (
+    run_all_consistency_checks,
+    check_orphaned_nodes,
+    check_duplicate_names,
+    check_missing_state_profiles,
+    check_abnormal_cooccurrence_weights,
+    check_disconnected_entries,
+    check_entries_without_concepts,
+    cleanup_duplicate_entries,
+)
 from .feedback import get_feedback_store, GRAPH_AUTO_TUNING_PATH
 from .feedback_review import build_feedback_review, suggest_prompts_from_note
 from .extractor import extract_entities
@@ -312,3 +322,51 @@ async def entries_by_state(
 @app.get("/graph/stats")
 async def stats():
     return get_graph_stats()
+
+
+@app.get("/graph/consistency")
+async def consistency_check():
+    """
+    Run all graph consistency checks and return a summary.
+
+    Checks include:
+    - Orphaned nodes (entities with no Entry relationships)
+    - Duplicate normalized names
+    - Missing state profiles on entries
+    - Abnormal cooccurrence weights
+    - Disconnected entries
+    - Entries without concepts (>100 words)
+    """
+    return run_all_consistency_checks()
+
+
+@app.get("/graph/consistency/{check_name}")
+async def consistency_check_single(check_name: str):
+    """Run a single consistency check by name."""
+    checks = {
+        "orphaned_nodes": check_orphaned_nodes,
+        "duplicate_names": check_duplicate_names,
+        "missing_state_profiles": check_missing_state_profiles,
+        "abnormal_cooccurrence_weights": check_abnormal_cooccurrence_weights,
+        "disconnected_entries": check_disconnected_entries,
+        "entries_without_concepts": check_entries_without_concepts,
+    }
+    if check_name not in checks:
+        return {
+            "error": f"Unknown check: {check_name}",
+            "available_checks": list(checks.keys()),
+        }
+    return checks[check_name]()
+
+
+@app.post("/graph/consistency/cleanup")
+async def consistency_cleanup():
+    """
+    Clean up duplicate entries and cascading entity duplicates.
+
+    This is a destructive operation that:
+    1. Removes duplicate Entry nodes (keeps one per filename)
+    2. Cleans up orphaned entity nodes
+    3. Merges duplicate Person/Place/Concept nodes
+    """
+    return cleanup_duplicate_entries()

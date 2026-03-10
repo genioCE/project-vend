@@ -214,3 +214,141 @@ async def get_state_label_endpoint(entry_id: str) -> StateLabelRecord:
     if record is None:
         raise HTTPException(status_code=404, detail=f"No state label found for entry_id={normalized}")
     return record
+
+
+# ─── State Label Audit Endpoints ─────────────────────────────────────────────
+
+from .state_label_audit import (
+    get_audit_store,
+    get_extreme_entries,
+    get_entry_text_preview,
+    AuditJudgment,
+    DIMENSIONS,
+)
+
+
+@app.get("/state-label/audit/sample")
+async def audit_sample(
+    dimension: str | None = None,
+    threshold: float = 0.6,
+    limit: int = 20,
+    exclude_audited: bool = True,
+) -> dict:
+    """
+    Get entries with extreme dimension scores for audit review.
+
+    Args:
+        dimension: Optional dimension to filter by (e.g., "valence", "agency")
+        threshold: Minimum absolute score to include (default 0.6)
+        limit: Maximum entries to return (default 20)
+        exclude_audited: Whether to exclude already-audited entries (default True)
+
+    Returns:
+        List of entries with their scores, signals, and text preview
+    """
+    if dimension and dimension not in DIMENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid dimension. Must be one of: {', '.join(DIMENSIONS)}"
+        )
+
+    db_path = os.environ.get("ENTRY_SUMMARY_DB_PATH", "/service/data/analysis.sqlite")
+
+    entries = get_extreme_entries(
+        db_path=db_path,
+        dimension=dimension,
+        threshold=threshold,
+        limit=limit,
+        exclude_audited=exclude_audited,
+        audit_db_path=db_path,
+    )
+
+    # Add text preview to each entry
+    for entry in entries:
+        entry["text_preview"] = get_entry_text_preview(db_path, entry["entry_id"])
+
+    return {
+        "count": len(entries),
+        "threshold": threshold,
+        "dimension_filter": dimension,
+        "entries": entries,
+    }
+
+
+@app.post("/state-label/audit/judgment")
+async def record_audit_judgment(body: AuditJudgment) -> dict:
+    """
+    Record a human judgment on a dimension score.
+
+    The judgment indicates whether the automated score aligns with human assessment:
+    - "agree": The score direction and magnitude seem correct
+    - "disagree": The score seems wrong (optionally provide correct_direction)
+    - "uncertain": Not enough information to judge
+
+    If disagreeing, you can specify the correct_direction ("low", "high", "neutral").
+    """
+    if body.dimension not in DIMENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid dimension. Must be one of: {', '.join(DIMENSIONS)}"
+        )
+
+    if body.judgment not in ("agree", "disagree", "uncertain"):
+        raise HTTPException(
+            status_code=400,
+            detail="Judgment must be 'agree', 'disagree', or 'uncertain'"
+        )
+
+    store = get_audit_store()
+    result = store.record_judgment(
+        entry_id=body.entry_id,
+        dimension=body.dimension,
+        original_score=body.original_score,
+        judgment=body.judgment,
+        correct_direction=body.correct_direction,
+        notes=body.notes,
+    )
+
+    return result
+
+
+@app.get("/state-label/audit/report")
+async def audit_report() -> dict:
+    """
+    Get aggregated audit statistics.
+
+    Returns:
+        - Total judgments recorded
+        - Per-dimension accuracy (agree vs disagree rate)
+        - Overall accuracy across all dimensions
+        - Worst and best performing dimensions
+        - Signals that frequently appear in disagreements (potential false positives)
+    """
+    store = get_audit_store()
+    return store.get_report()
+
+
+@app.get("/state-label/audit/judgments")
+async def get_audit_judgments(
+    dimension: str | None = None,
+    judgment: str | None = None,
+    limit: int = 100,
+) -> dict:
+    """Get recorded audit judgments with optional filters."""
+    if dimension and dimension not in DIMENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid dimension. Must be one of: {', '.join(DIMENSIONS)}"
+        )
+
+    store = get_audit_store()
+    judgments = store.get_judgments(
+        dimension=dimension,
+        judgment=judgment,
+        limit=limit,
+    )
+
+    return {
+        "count": len(judgments),
+        "judgments": judgments,
+    }

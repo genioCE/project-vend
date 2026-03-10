@@ -23,7 +23,10 @@ export async function orchestrate(
   // 1. Decompose query into fragments + extract params
   const decomposition = await decompose(query, signal);
   const frags = decomposition.fragments.map((f) => `[${f.type}] ${f.text}`).join(", ");
-  console.error(`[gravity] fragments: ${frags}`);
+  const tokenInfo = decomposition.token_usage
+    ? ` (${decomposition.token_usage.source}: ${decomposition.token_usage.total_tokens} tokens)`
+    : "";
+  console.error(`[gravity] fragments: ${frags}${tokenInfo}`);
 
   // 2. Embed fragments + full query via /embed endpoint
   await embedDecomposition(decomposition, query, signal);

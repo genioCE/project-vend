@@ -5,6 +5,7 @@ import type {
   Fragment,
   FragmentType,
   ExtractedParams,
+  TokenUsage,
 } from "./types.js";
 
 // ─── Known vocabulary for rule-based decomposition ────────────────────
@@ -38,6 +39,15 @@ const RELATIONAL_PATTERNS = [
   /connection\s+(between|to|with)/i,
   /dynamic\s+(between|with)/i,
   /interactions?\s+with/i,
+  /what\s+connects/i,
+  /compared?\s+to/i,
+  /show\s+up\s+in/i,
+  /shows?\s+up\s+in/i,
+  /mean\s+to\s+me/i,
+  /means?\s+to\s+me/i,
+  /comes?\s+with/i,
+  /how\s+\w+\s+affects?/i,
+  /affects?\s+my/i,
 ];
 
 const TEMPORAL_PATTERNS = [
@@ -391,6 +401,12 @@ function decomposeLocal(query: string): DecompositionResult | null {
       metrics,
       search_query: query,
     },
+    token_usage: {
+      input_tokens: 0,
+      output_tokens: 0,
+      total_tokens: 0,
+      source: "rule-based",
+    },
   };
 }
 
@@ -407,7 +423,7 @@ Given a natural language query, decompose it into typed semantic fragments AND e
 - **entity**: Named people, places, practices, organizations (e.g., Kyle, Blocworks, climbing, StarSpace46, Mom)
 - **temporal**: Time dimensions, change markers, period references (e.g., change over time, since January, last 3 months, recently, since I started climbing)
 - **emotional**: Feelings, states, psychological dimensions (e.g., self-trust, integration, agency, valence, stuck, empowered, fragmented)
-- **relational**: Connection structure, influence, tension (e.g., relationship with, tension between, influence of, how X connects to Y)
+- **relational**: Connection structure, influence, tension, comparison. Key markers: 'relationship with', 'tension between', 'how X affects Y', 'what connects', 'compared to', 'show up in', 'mean to me', 'comes with'. If a query asks HOW two things relate or what accompanies something, that's relational.
 - **archetypal**: Patterns, roles, mythic structures (e.g., Creator, Healer, Warrior, Sovereign, Integrator)
 
 ## Rules
@@ -470,6 +486,14 @@ async function decomposeLLM(
     messages: [{ role: "user", content: query }],
   });
 
+  // Capture token usage from API response
+  const tokenUsage: TokenUsage = {
+    input_tokens: response.usage.input_tokens,
+    output_tokens: response.usage.output_tokens,
+    total_tokens: response.usage.input_tokens + response.usage.output_tokens,
+    source: "llm",
+  };
+
   let text =
     response.content[0].type === "text" ? response.content[0].text.trim() : "";
 
@@ -519,6 +543,7 @@ async function decomposeLLM(
     primary_mass_index: data.primary_mass_index,
     reasoning: data.reasoning || "",
     extracted,
+    token_usage: tokenUsage,
   };
 }
 
@@ -542,6 +567,12 @@ export async function decompose(
         date_ranges: [],
         metrics: [],
         search_query: query,
+      },
+      token_usage: {
+        input_tokens: 0,
+        output_tokens: 0,
+        total_tokens: 0,
+        source: "fallback",
       },
     };
   }
@@ -576,6 +607,12 @@ export async function decompose(
         date_ranges: [],
         metrics: [],
         search_query: query,
+      },
+      token_usage: {
+        input_tokens: 0,
+        output_tokens: 0,
+        total_tokens: 0,
+        source: "fallback",
       },
     };
   }

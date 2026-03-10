@@ -6,6 +6,14 @@ export type FragmentType =
   | "relational"
   | "archetypal";
 
+export interface TokenUsage {
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+  /** Which method produced these tokens: "llm" | "rule-based" | "fallback" */
+  source: "llm" | "rule-based" | "fallback";
+}
+
 export interface Fragment {
   type: FragmentType;
   text: string;
@@ -26,6 +34,7 @@ export interface DecompositionResult {
   reasoning: string;
   extracted: ExtractedParams;
   query_embedding?: number[];
+  token_usage?: TokenUsage;
 }
 
 export interface ActivatedTool {
@@ -62,6 +71,7 @@ export interface OrchestratedResult {
   activated_tools: string[];
   results: ToolResult[];
   total_ms: number;
+  token_usage?: TokenUsage;
 }
 
 // ─── Gravity Ledger Types ────────────────────────────────────────────

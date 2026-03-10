@@ -36,5 +36,6 @@ export function assembleResults(
     activated_tools: field.activated.map((t) => t.name),
     results: sorted,
     total_ms: 0, // set by caller
+    token_usage: decomposition.token_usage,
   };
 }
