@@ -1,0 +1,29 @@
+{
+  "name": "project-vend",
+  "version": "0.1.0",
+  "description": "AI-powered agentic vending machine system with gravity-based orchestration",
+  "type": "module",
+  "main": "dist/gravity/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "check": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "ai-agents",
+    "vending-machine",
+    "gravity-orchestration",
+    "multi-agent",
+    "uco"
+  ],
+  "author": "genioCE",
+  "license": "MIT",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.30.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0"
+  }
+}
