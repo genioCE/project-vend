@@ -127,5 +127,5 @@ The gravity orchestration engine is ported and adapted from corpus-intelligence 
 
 ---
 
-*Gravity orchestration system designed by Jer Hewes — Hewes Nguyen AI Infrastructure*
-*Adapted for Project Vend by genioCE for University of Central Oklahoma*
+*Gravity orchestration system designed by Jer Nguyen — Hewes Nguyen AI Infrastructure*
+*Adapted for Project Vend for University of Central Oklahoma*
